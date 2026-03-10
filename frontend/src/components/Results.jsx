@@ -7,6 +7,116 @@ const PRIORITY_COLORS = {
   'nízká':   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100' }
 }
 
+// ─── Priority matrix helpers ────────────────────────────────────────────────
+
+function getRecCategory(rec) {
+  const e = rec.ease || 2
+  const imp = rec.impact || 2
+  if (e === 1 && imp === 3) return 0           // 🟢 Udělej hned
+  if ((e === 1 && imp === 2) || (e === 2 && imp === 3)) return 1  // 🟡 Naplánuj
+  return 2                                     // ⚪ Až budeš mít čas
+}
+
+const CATEGORY_INFO = [
+  { emoji: '🟢', label: 'Udělej hned',       color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200' },
+  { emoji: '🟡', label: 'Naplánuj',           color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+  { emoji: '⚪', label: 'Až budeš mít čas',  color: 'text-muted',      bg: 'bg-gray-50',   border: 'border-gray-200' },
+]
+
+function DotIndicator({ value, max = 3, colorFilled = '#1B6840' }) {
+  return (
+    <span className="inline-flex gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <svg key={i} width="8" height="8" viewBox="0 0 8 8">
+          <circle cx="4" cy="4" r="3.5" fill={i < value ? colorFilled : '#E5E7EB'} />
+        </svg>
+      ))}
+    </span>
+  )
+}
+
+function PriorityMatrix({ recommendations }) {
+  const recs = recommendations.filter(r => r.ease != null && r.impact != null)
+  if (recs.length === 0) return null
+
+  return (
+    <div className="bg-white border border-border rounded-xl p-5 shadow-sm mb-6">
+      <h3 className="text-sm font-700 text-text-primary mb-0.5">Prioritizační matice</h3>
+      <p className="text-xs text-muted mb-5">
+        Osa X = snadnost provedení &nbsp;·&nbsp; Osa Y = dopad na výsledky · Najeďte myší na číslo pro detail
+      </p>
+
+      <div className="flex gap-3">
+        {/* Y-axis label */}
+        <div className="flex flex-col items-center justify-between py-1 shrink-0" style={{ width: '18px' }}>
+          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#9CA3AF', lineHeight: 1 }}>Velký</span>
+          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#6B7280', fontWeight: 700, letterSpacing: '0.05em', lineHeight: 1 }}>DOPAD ↑</span>
+          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#9CA3AF', lineHeight: 1 }}>Malý</span>
+        </div>
+
+        <div className="flex-1 flex flex-col gap-2">
+          {/* Matrix grid */}
+          <div className="relative rounded-xl overflow-hidden border border-border" style={{ height: '220px' }}>
+            {/* 2×2 quadrant backgrounds */}
+            <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+              <div style={{ background: '#F0FDF4' }} />   {/* top-left:  easy + high impact → green */}
+              <div style={{ background: '#FEFCE8' }} />   {/* top-right: hard + high impact → yellow */}
+              <div style={{ background: '#EFF6FF' }} />   {/* bot-left:  easy + low  impact → blue  */}
+              <div style={{ background: '#F9FAFB' }} />   {/* bot-right: hard + low  impact → gray  */}
+            </div>
+
+            {/* Center dividers */}
+            <div className="absolute pointer-events-none" style={{ left: '50%', top: 0, bottom: 0, width: '1px', background: '#D1D5DB' }} />
+            <div className="absolute pointer-events-none" style={{ top: '50%', left: 0, right: 0, height: '1px', background: '#D1D5DB' }} />
+
+            {/* Quadrant corner labels */}
+            <div className="absolute top-2 left-3 text-xs font-600 pointer-events-none" style={{ color: '#15803d', fontSize: '11px' }}>🟢 Udělej hned</div>
+            <div className="absolute top-2 right-3 text-xs font-600 pointer-events-none text-right" style={{ color: '#a16207', fontSize: '11px' }}>🟡 Naplánuj</div>
+            <div className="absolute bottom-2 left-3 text-xs font-600 pointer-events-none" style={{ color: '#1d4ed8', fontSize: '11px' }}>🟡 Naplánuj</div>
+            <div className="absolute bottom-2 right-3 text-xs font-600 pointer-events-none text-right" style={{ color: '#9CA3AF', fontSize: '11px' }}>⚪ Později</div>
+
+            {/* Dots */}
+            {recs.map((rec, i) => {
+              // ease 1→12%, 2→50%, 3→88% on X; impact 3→12%, 2→50%, 1→88% on Y
+              const xPct = ((rec.ease - 1) / 2) * 76 + 12
+              const yPct = ((3 - rec.impact) / 2) * 76 + 12
+              return (
+                <div
+                  key={i}
+                  className="absolute group z-10"
+                  style={{ left: `${xPct}%`, top: `${yPct}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full text-white text-sm font-700 flex items-center justify-center cursor-default select-none border-2 border-white shadow-md"
+                    style={{ background: '#1B6840' }}
+                  >
+                    {i + 1}
+                  </div>
+                  {/* Tooltip */}
+                  <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-56 bg-gray-900 text-white text-xs rounded-xl p-3 hidden group-hover:block z-20 leading-relaxed shadow-2xl pointer-events-none">
+                    <div className="font-600 mb-1.5">{rec.action}</div>
+                    <div style={{ color: '#9CA3AF' }}>
+                      Snadnost: {rec.ease}/3 &nbsp;·&nbsp; Dopad: {rec.impact}/3
+                    </div>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* X-axis labels */}
+          <div className="flex justify-between text-xs text-muted px-1">
+            <span>← Snadné</span>
+            <span className="font-700 text-text-secondary">SNADNOST →</span>
+            <span>Složité →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function scoreColor(v) {
   return v >= 70 ? '#22c55e' : v >= 50 ? '#F59E0B' : '#ef4444'
 }
@@ -203,7 +313,11 @@ function PdfTemplate({ auditData, pdfRef }) {
                     <span style={getPriorityBadge(rec.priority)}>{(rec.priority || 'nízká').toUpperCase()} PRIORITA</span>
                     <span style={{ fontSize: '12.5px', color: '#111827', fontWeight: '500', flex: 1 }}>{rec.action}</span>
                   </div>
-                  {rec.impact && <div style={{ fontSize: '11.5px', color: '#9CA3AF', marginTop: '4px' }}>Dopad: {rec.impact}</div>}
+                  {(rec.impactDescription || (typeof rec.impact === 'string' ? rec.impact : '')) && (
+                    <div style={{ fontSize: '11.5px', color: '#9CA3AF', marginTop: '4px' }}>
+                      Dopad: {rec.impactDescription || rec.impact}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -485,36 +599,95 @@ export default function Results({ auditData, onRestart, contact }) {
       )}
 
       {/* ── Tab: Doporučení ── */}
-      {tab === 'recommendations' && (
-        <div className="space-y-4">
-          {(auditData.topRecommendations || []).map((rec, i) => {
-            const p = rec.priority?.toLowerCase() || 'nízká'
-            const styles = PRIORITY_COLORS[p] || PRIORITY_COLORS['nízká']
-            return (
-              <div key={i} className={`rounded-xl border p-5 ${styles.bg} ${styles.border}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${styles.badge} ${styles.text}`}>
-                        {rec.priority?.toUpperCase() || 'NÍZKÁ'} PRIORITA
-                      </span>
+      {tab === 'recommendations' && (() => {
+        const recs = auditData.topRecommendations || []
+        const hasMatrix = recs.some(r => r.ease != null && r.impact != null)
+
+        // Sort: 🟢 first, then 🟡, then ⚪
+        const sortedRecs = [...recs]
+          .map((r, origIdx) => ({ ...r, origIdx }))
+          .sort((a, b) => getRecCategory(a) - getRecCategory(b))
+
+        return (
+          <div className="space-y-4">
+            {/* Priority matrix */}
+            {hasMatrix && <PriorityMatrix recommendations={recs} />}
+
+            {/* Sorted recommendations list */}
+            {sortedRecs.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-mono text-muted uppercase tracking-wide">
+                  {hasMatrix ? 'Doporučení dle priority' : 'Top doporučení'}
+                </h3>
+                {sortedRecs.map((rec) => {
+                  const cat = getRecCategory(rec)
+                  const catInfo = CATEGORY_INFO[cat]
+                  // Support both old (impact as string) and new (impactDescription) schema
+                  const impactText = rec.impactDescription || (typeof rec.impact === 'string' ? rec.impact : '')
+                  const p = rec.priority?.toLowerCase() || 'nízká'
+                  const prioStyles = PRIORITY_COLORS[p] || PRIORITY_COLORS['nízká']
+
+                  return (
+                    <div key={rec.origIdx} className={`rounded-xl border p-5 ${catInfo.bg} ${catInfo.border}`}>
+                      <div className="flex items-start gap-3">
+                        {/* Number badge */}
+                        <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-700 text-white mt-0.5" style={{ background: '#1B6840' }}>
+                          {rec.origIdx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {/* Category + priority row */}
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className={`text-xs font-600 ${catInfo.color}`}>
+                              {catInfo.emoji} {catInfo.label}
+                            </span>
+                            {rec.priority && (
+                              <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${prioStyles.badge} ${prioStyles.text}`}>
+                                {rec.priority.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Action */}
+                          <p className="text-text-primary text-sm font-600 mb-2">{rec.action}</p>
+
+                          {/* Impact description */}
+                          {impactText && (
+                            <p className="text-text-secondary text-xs mb-3">
+                              <span className="text-muted">Dopad: </span>{impactText}
+                            </p>
+                          )}
+
+                          {/* Ease + impact indicators */}
+                          {rec.ease != null && rec.impact != null && (
+                            <div className="flex items-center gap-4 text-xs text-muted">
+                              <span className="flex items-center gap-1.5">
+                                <DotIndicator value={4 - rec.ease} colorFilled="#1B6840" />
+                                Snadnost: {rec.ease === 1 ? 'Snadné' : rec.ease === 2 ? 'Střední' : 'Složité'}
+                              </span>
+                              <span className="flex items-center gap-1.5">
+                                <DotIndicator value={rec.impact} colorFilled="#F59E0B" />
+                                Dopad: {rec.impact === 3 ? 'Velký' : rec.impact === 2 ? 'Střední' : 'Malý'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-text-primary text-sm">{rec.action}</p>
-                    {rec.impact && <p className="text-text-secondary text-xs mt-2"><span className="text-muted">Dopad: </span>{rec.impact}</p>}
-                  </div>
-                  <span className={`text-2xl font-display font-700 ${styles.text}`}>{String(i + 1).padStart(2, '0')}</span>
-                </div>
+                  )
+                })}
               </div>
-            )
-          })}
-          {auditData.siteWideIssues?.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-xs font-mono text-muted uppercase tracking-wide mb-4">Problémy celého webu</h3>
-              <ul className="space-y-2">{auditData.siteWideIssues.map((issue, i) => <IssueItem key={i} text={issue} type="issue" />)}</ul>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+
+            {/* Site-wide issues */}
+            {auditData.siteWideIssues?.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-xs font-mono text-muted uppercase tracking-wide mb-4">Problémy celého webu</h3>
+                <ul className="space-y-2">{auditData.siteWideIssues.map((issue, i) => <IssueItem key={i} text={issue} type="issue" />)}</ul>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── CTA section ── */}
       <div className="mt-14 rounded-2xl overflow-hidden">
