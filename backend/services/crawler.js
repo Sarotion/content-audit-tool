@@ -1,5 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const https = require('https');
 
 const CRAWL_TIMEOUT = 8000;
 const MAX_PAGES = 10;
@@ -9,6 +10,12 @@ const HEADERS = {
   'Accept': 'text/html,application/xhtml+xml',
   'Accept-Language': 'cs,en;q=0.9'
 };
+
+// HTTPS agent that tolerates self-signed / untrusted certificates.
+// A content-audit crawler reads public pages and never transmits sensitive
+// data, so relaxing certificate verification is safe and necessary to reach
+// sites whose cert chain is not trusted by Node's bundled CA store.
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 /**
  * Normalise URL – ensure it has a scheme and no trailing slash
@@ -132,7 +139,8 @@ async function fetchPage(url) {
       timeout: CRAWL_TIMEOUT,
       headers: HEADERS,
       maxRedirects: 5,
-      validateStatus: s => s < 500
+      validateStatus: s => s < 500,
+      httpsAgent
     });
 
     if (!response.headers['content-type']?.includes('html')) return null;
@@ -210,7 +218,7 @@ async function crawlWebsite(startUrl) {
   const uncrawledSample = [...visited].filter(u => !pages.find(p => p.url === u)).slice(0, 20);
   for (const url of uncrawledSample) {
     try {
-      const resp = await axios.head(url, { timeout: 4000, headers: HEADERS, maxRedirects: 3, validateStatus: () => true });
+      const resp = await axios.head(url, { timeout: 4000, headers: HEADERS, maxRedirects: 3, validateStatus: () => true, httpsAgent });
       if (resp.status === 404) brokenLinks.push(url);
     } catch {}
   }
