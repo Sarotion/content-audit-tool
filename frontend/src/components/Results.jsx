@@ -496,13 +496,15 @@ export default function Results({ auditData, onRestart, contact }) {
       )}
 
       {/* ── Tabs ── */}
-      <div className="flex gap-0 border-b border-border mb-8">
+      <div className="flex gap-0 border-b-2 border-border mb-8">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-5 py-2.5 text-sm font-body transition-colors border-b-2 -mb-px ${
-              tab === t.id ? 'border-accent text-accent font-600' : 'border-transparent text-muted hover:text-text-secondary'
+            className={`px-5 py-2.5 text-sm font-600 font-body transition-colors border-b-2 -mb-0.5 ${
+              tab === t.id
+                ? 'border-accent text-accent'
+                : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-mid'
             }`}
           >
             {t.label}
