@@ -18,7 +18,7 @@ export default function App() {
     setStep('loading')
 
     try {
-      const response = await fetch('/api/audit', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/audit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: inputUrl })
@@ -40,7 +40,7 @@ export default function App() {
 
   async function submitLead(contact) {
     // Fire-and-forget HubSpot save – don't block showing results
-    fetch('/api/lead', {
+    fetch(`${import.meta.env.VITE_API_URL}/api/lead`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact, auditData })
