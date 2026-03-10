@@ -82,7 +82,7 @@ export default function UrlInput({ onSubmit, error }) {
       <div className="text-center mb-10 fade-up fade-up-1">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 border border-accent/30 bg-accent-light rounded-full px-4 py-1.5 mb-7">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1B6840" strokeWidth="2.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B72C6A" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           <span className="text-xs font-body font-600 text-accent">Zdarma · Bez registrace</span>
@@ -103,7 +103,7 @@ export default function UrlInput({ onSubmit, error }) {
       <div className="max-w-2xl mx-auto mb-10 fade-up fade-up-2">
         <form onSubmit={handleSubmit}>
           <div className={`relative rounded-xl border-2 transition-all duration-200 bg-white shadow-sm ${
-            focused ? 'border-accent shadow-[0_0_0_4px_rgba(27,104,64,0.08)]' : 'border-border-mid'
+            focused ? 'border-accent shadow-[0_0_0_4px_rgba(183,44,106,0.08)]' : 'border-border-mid'
           }`}>
             <div className="flex items-center">
               <div className="pl-4 pr-2 text-muted">
@@ -125,7 +125,7 @@ export default function UrlInput({ onSubmit, error }) {
               <button
                 type="submit"
                 disabled={!url.trim()}
-                className="m-1.5 px-6 py-3 bg-accent text-white font-display font-600 text-sm rounded-lg
+                className="m-1.5 px-6 py-3 bg-accent text-white font-display font-600 text-sm rounded-full
                   disabled:opacity-40 disabled:cursor-not-allowed
                   hover:bg-accent-hover transition-colors duration-150 whitespace-nowrap"
               >

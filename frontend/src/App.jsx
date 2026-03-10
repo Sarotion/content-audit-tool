@@ -79,38 +79,23 @@ export default function App() {
   const showStickyBar = step === 'results' && auditData
 
   return (
-    // min-h-screen is intentionally omitted when embedded:
-    // it creates a circular dependency where 100vh grows with each postMessage update.
+    // min-h-screen intentionally omitted when embedded (avoids circular height dependency)
     <div className={`relative bg-base overflow-x-hidden ${isEmbedded ? '' : 'min-h-screen'}`}>
 
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-border">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <span className="text-white font-bold text-sm">G</span>
-            </div>
-            <span className="font-display font-700 text-base text-text-primary">
-              Get<span className="text-accent">Found</span>
-            </span>
-          </a>
-
-          <div className="flex items-center gap-3">
-            {step === 'results' && (
-              <button
-                onClick={restart}
-                className="text-xs font-mono text-muted hover:text-accent transition-colors hidden sm:block"
-              >
-                ← Nový audit
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-accent pulse-glow" />
-              <span className="text-xs font-mono text-muted hidden sm:block">Content Audit Tool</span>
-            </div>
-          </div>
+      {/* Minimal back-link shown only in results – no full header branding */}
+      {step === 'results' && (
+        <div className="max-w-5xl mx-auto px-6 pt-5">
+          <button
+            onClick={restart}
+            className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent transition-colors"
+          >
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Nový audit
+          </button>
         </div>
-      </header>
+      )}
 
       {/* Main content — extra bottom padding in results so content isn't hidden behind the bar */}
       <main className={showStickyBar && !isEmbedded ? 'pb-20' : ''}>
@@ -119,19 +104,6 @@ export default function App() {
         {step === 'gate'    && auditData && <LeadGate auditData={auditData} onSubmit={submitLead} />}
         {step === 'results' && auditData && <Results auditData={auditData} onRestart={restart} contact={contact} />}
       </main>
-
-      {/* Footer (hidden in results – bar takes over) */}
-      {step !== 'results' && (
-        <footer className="border-t border-border mt-16 py-6">
-          <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-muted">© 2025 GetFound s.r.o. – Nástroj pro analýzu obsahu e-shopů</p>
-            <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer"
-              className="text-xs text-muted hover:text-accent transition-colors">
-              getfound.cz →
-            </a>
-          </div>
-        </footer>
-      )}
 
       {/* ── Bottom bar (results only) ── */}
 
@@ -150,7 +122,7 @@ export default function App() {
               href="https://getfound.cz/kontakt/"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-accent text-white font-display font-700 text-sm rounded-lg px-5 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
+              className="bg-accent text-white font-display font-700 text-sm rounded-full px-6 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
             >
               Domluvit konzultaci
             </a>
@@ -158,7 +130,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Embedded (iframe): in-flow bar at bottom of content, no position:fixed */}
+      {/* Embedded (iframe / widget): in-flow bar at bottom of content */}
       {showStickyBar && isEmbedded && (
         <div className="bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.06)] mt-8">
           <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
@@ -173,7 +145,7 @@ export default function App() {
               href="https://getfound.cz/kontakt/"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-accent text-white font-display font-700 text-sm rounded-lg px-5 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
+              className="bg-accent text-white font-display font-700 text-sm rounded-full px-6 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
             >
               Domluvit konzultaci
             </a>

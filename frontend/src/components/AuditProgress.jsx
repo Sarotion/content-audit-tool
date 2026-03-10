@@ -71,7 +71,7 @@ export default function AuditProgress({ url }) {
             <circle cx="28" cy="28" r="23" stroke="#E5E7EB" strokeWidth="4"/>
             <circle
               cx="28" cy="28" r="23"
-              stroke="#1B6840"
+              stroke="#B72C6A"
               strokeWidth="4"
               strokeLinecap="round"
               strokeDasharray="144"
@@ -117,13 +117,13 @@ export default function AuditProgress({ url }) {
               <span className="shrink-0">
                 {done ? (
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="10" fill="#1B6840"/>
+                    <circle cx="10" cy="10" r="10" fill="#B72C6A"/>
                     <path d="M6 10l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 ) : active ? (
                   <svg className="animate-spin" width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <circle cx="10" cy="10" r="8" stroke="#E5E7EB" strokeWidth="2.5"/>
-                    <circle cx="10" cy="10" r="8" stroke="#1B6840" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="50" strokeDashoffset="38"/>
+                    <circle cx="10" cy="10" r="8" stroke="#B72C6A" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="50" strokeDashoffset="38"/>
                   </svg>
                 ) : (
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">

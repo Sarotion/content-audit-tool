@@ -123,7 +123,7 @@ export default function LeadGate({ auditData, onSubmit }) {
                   onChange={e => { setFirstName(e.target.value); setFieldErrors(p => ({ ...p, firstName: null })) }}
                   placeholder="Jan Novák"
                   className={`w-full bg-surface border rounded-lg px-3.5 py-2.5 text-sm text-text-primary outline-none transition-colors
-                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,104,64,0.08)]
+                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(183,44,106,0.08)]
                     ${fieldErrors.firstName ? 'border-red-400 bg-red-50' : 'border-border'}`}
                 />
                 {fieldErrors.firstName && <p className="text-xs text-red-500 mt-1">{fieldErrors.firstName}</p>}
@@ -140,7 +140,7 @@ export default function LeadGate({ auditData, onSubmit }) {
                   onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: null })) }}
                   placeholder="jan@vasespolecnost.cz"
                   className={`w-full bg-surface border rounded-lg px-3.5 py-2.5 text-sm text-text-primary outline-none transition-colors
-                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,104,64,0.08)]
+                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(183,44,106,0.08)]
                     ${fieldErrors.email ? 'border-red-400 bg-red-50' : 'border-border'}`}
                 />
                 {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
@@ -157,7 +157,7 @@ export default function LeadGate({ auditData, onSubmit }) {
                   onChange={e => setPhone(e.target.value)}
                   placeholder="+420 123 456 789"
                   className="w-full bg-surface border border-border rounded-lg px-3.5 py-2.5 text-sm text-text-primary outline-none transition-colors
-                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,104,64,0.08)]"
+                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(183,44,106,0.08)]"
                 />
               </div>
 
@@ -165,7 +165,7 @@ export default function LeadGate({ auditData, onSubmit }) {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-accent text-white font-display font-700 rounded-lg py-3 text-sm
+                className="w-full bg-accent text-white font-display font-700 rounded-full py-3 text-sm
                   hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
               >
                 {submitting ? 'Odesílám...' : 'Zobrazit výsledky →'}
