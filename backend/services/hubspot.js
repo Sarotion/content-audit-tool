@@ -100,6 +100,49 @@ function buildContactProperties(contact, auditSummary) {
   };
 }
 
+/**
+ * Update a single HubSpot contact property (content_audit_pdf_url) by email.
+ * Called after the PDF is generated and saved.
+ */
+async function updateContactPdfUrl(email, pdfUrl) {
+  const token = process.env.HUBSPOT_TOKEN;
+  if (!token) {
+    console.warn('⚠️  HUBSPOT_TOKEN not set – skipping PDF URL update');
+    return;
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+
+  // Find contact by email
+  const searchResp = await axios.post(
+    `${HUBSPOT_API}/objects/contacts/search`,
+    {
+      filterGroups: [{
+        filters: [{ propertyName: 'email', operator: 'EQ', value: email }]
+      }],
+      limit: 1
+    },
+    { headers }
+  );
+
+  if (searchResp.data.total === 0) {
+    console.warn(`⚠️  HubSpot contact not found for email: ${email}`);
+    return;
+  }
+
+  const contactId = searchResp.data.results[0].id;
+  await axios.patch(
+    `${HUBSPOT_API}/objects/contacts/${contactId}`,
+    { properties: { content_audit_pdf_url: pdfUrl } },
+    { headers }
+  );
+
+  console.log(`✅ HubSpot PDF URL saved for contact ${contactId}: ${pdfUrl}`);
+}
+
 function buildAuditNote(contact, audit) {
   const score = audit.overallScore || 0;
   const emoji = score >= 71 ? '🟢' : score >= 41 ? '🟡' : '🔴';
@@ -129,4 +172,4 @@ function buildAuditNote(contact, audit) {
   return lines.join('\n');
 }
 
-module.exports = { saveLeadToHubspot };
+module.exports = { saveLeadToHubspot, updateContactPdfUrl };

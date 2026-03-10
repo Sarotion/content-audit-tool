@@ -11,6 +11,7 @@ export default function App() {
   const [url, setUrl] = useState('')
   const [auditData, setAuditData] = useState(null)
   const [error, setError] = useState(null)
+  const [contact, setContact] = useState(null)
 
   async function startAudit(inputUrl) {
     setUrl(inputUrl)
@@ -38,12 +39,15 @@ export default function App() {
     }
   }
 
-  async function submitLead(contact) {
+  async function submitLead(contactData) {
+    // Store contact for PDF upload later
+    setContact(contactData)
+
     // Fire-and-forget HubSpot save – don't block showing results
     fetch(`${import.meta.env.VITE_API_URL}/api/lead`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact, auditData })
+      body: JSON.stringify({ contact: contactData, auditData })
     }).catch(() => {})
 
     setStep('results')
@@ -54,6 +58,7 @@ export default function App() {
     setUrl('')
     setAuditData(null)
     setError(null)
+    setContact(null)
   }
 
   return (
@@ -94,7 +99,7 @@ export default function App() {
           <LeadGate auditData={auditData} onSubmit={submitLead} />
         )}
         {step === 'results' && auditData && (
-          <Results auditData={auditData} onRestart={restart} />
+          <Results auditData={auditData} onRestart={restart} contact={contact} />
         )}
       </main>
 

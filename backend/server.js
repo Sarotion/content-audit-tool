@@ -3,18 +3,28 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 
 const auditRoutes = require('./routes/audit');
 const leadRoutes = require('./routes/lead');
+const pdfRoutes = require('./routes/pdf');
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  // Allow serving PDF files from /uploads without strict CSP
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
+
+// Increased limit to handle base64-encoded PDF payloads (up to ~20 MB raw)
+app.use(express.json({ limit: '25mb' }));
+
+// Serve uploaded PDFs as static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rate limit: max 10 audits per IP per 15 minutes
 const auditLimiter = rateLimit({
@@ -26,6 +36,7 @@ const auditLimiter = rateLimit({
 app.use('/api/audit', auditLimiter);
 app.use('/api/audit', auditRoutes);
 app.use('/api/lead', leadRoutes);
+app.use('/api/pdf', pdfRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
