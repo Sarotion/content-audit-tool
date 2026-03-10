@@ -3,7 +3,7 @@ export default function ScoreRing({ score, size = 80, strokeWidth = 6 }) {
   const circumference = 2 * Math.PI * radius
   const offset = circumference - (score / 100) * circumference
 
-  const color = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
+  const color = score >= 70 ? '#22c55e' : score >= 50 ? '#F59E0B' : '#ef4444'
 
   return (
     <svg width={size} height={size} className="shrink-0">
@@ -13,7 +13,7 @@ export default function ScoreRing({ score, size = 80, strokeWidth = 6 }) {
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="#E9E9F9"
+        stroke="#E5E7EB"
         strokeWidth={strokeWidth}
       />
       {/* Score ring */}

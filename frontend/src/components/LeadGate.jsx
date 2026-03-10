@@ -1,197 +1,183 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import ScoreRing from './ScoreRing'
 
-const HUBSPOT_PORTAL_ID = '146612458'
-const HUBSPOT_FORM_ID   = '608af3d8-7490-438e-9607-504c6702b702'
-
 function CategoryBar({ label, score }) {
-  const color = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
+  const color = score >= 70 ? '#22c55e' : score >= 50 ? '#F59E0B' : '#ef4444'
   return (
     <div className="flex items-center gap-3">
-      <div className="w-28 text-xs text-text-secondary shrink-0 text-right">{label}</div>
-      <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden border border-border">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${score}%`, backgroundColor: color }}
-        />
+      <div className="w-32 text-xs text-text-secondary shrink-0">{label}</div>
+      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
       </div>
-      <div className="w-8 text-xs font-mono text-right" style={{ color }}>{score}</div>
+      <div className="w-7 text-xs font-mono font-600 text-right shrink-0" style={{ color }}>{score}</div>
     </div>
   )
 }
 
 export default function LeadGate({ auditData, onSubmit }) {
-  const [formReady, setFormReady] = useState(false)
-  // Captured from form fields just before HubSpot submits
-  const capturedRef = useRef({ firstName: '', email: '', phone: '' })
+  const [firstName, setFirstName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const score      = auditData.overallScore
-  const scoreColor = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
-  const scoreLabel = score >= 71 ? 'Dobrý základ' : score >= 41 ? 'Potřebuje práci' : 'Kritický stav'
+  const scoreColor = score >= 70 ? '#22c55e' : score >= 50 ? '#F59E0B' : '#ef4444'
+  const scoreLabel = score >= 70 ? 'Dobrý základ' : score >= 50 ? 'Potřebuje práci' : 'Kritický stav'
 
-  // ── Load & initialise HubSpot form ────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true
+  const dupsCount = (auditData.duplicateTitles?.length || 0) + (auditData.duplicateDescriptions?.length || 0)
+  const problemsCount = (auditData.topIssues?.length || 0) + (auditData.brokenLinksCount || 0) + dupsCount
 
-    function initForm() {
-      if (!mounted || !window.hbspt) return
+  function validate() {
+    const errs = {}
+    if (!firstName.trim()) errs.firstName = 'Povinné pole'
+    if (!email.trim()) errs.email = 'Povinné pole'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Neplatný e-mail'
+    return errs
+  }
 
-      window.hbspt.forms.create({
-        region:   'eu1',
-        portalId: HUBSPOT_PORTAL_ID,
-        formId:   HUBSPOT_FORM_ID,
-        target:   '#hs-form-target',
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setFieldErrors(errs); return }
+    setSubmitting(true)
+    await onSubmit({ firstName: firstName.trim(), email: email.trim(), phone: phone.trim() })
+    setSubmitting(false)
+  }
 
-        // Disable HubSpot's built-in CSS so we apply our own (see index.css)
-        cssRequired: '',
-
-        onFormReady($form) {
-          if (!mounted) return
-          setFormReady(true)
-
-          // ── Pre-fill hidden fields with audit context ──────────────────
-          // content_audit_pdf_url starts empty; it is updated later via
-          // PATCH from /api/pdf once the user generates the PDF report.
-          const hiddenFields = {
-            content_audit_pdf_url: '',
-            content_audit_score:   String(auditData.overallScore ?? ''),
-            content_audit_url:     auditData.url ?? '',
-            content_audit_date:    new Date().toISOString().split('T')[0],
-          }
-          Object.entries(hiddenFields).forEach(([name, value]) => {
-            $form
-              .find(`input[name="${name}"]`)
-              .val(value)
-              .trigger('change')
-          })
-        },
-
-        onFormSubmit($form) {
-          // Capture visible field values before HubSpot posts to its API
-          capturedRef.current = {
-            firstName: $form.find('input[name="firstname"]').val()  || '',
-            email:     $form.find('input[name="email"]').val()       || '',
-            phone:     $form.find('input[name="phone"]').val()       || '',
-          }
-        },
-
-        onFormSubmitted() {
-          if (!mounted) return
-          // Advance the app to the results step
-          onSubmit(capturedRef.current)
-        },
-      })
-    }
-
-    if (window.hbspt) {
-      initForm()
-    } else {
-      const script = document.createElement('script')
-      script.src     = 'https://js.hsforms.net/forms/embed/v2.js'
-      script.charset = 'utf-8'
-      script.async   = true
-      script.onload  = initForm
-      document.head.appendChild(script)
-    }
-
-    return () => { mounted = false }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto px-6 py-16">
+    <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="grid md:grid-cols-2 gap-6 items-start">
 
-      {/* ── Header ── */}
-      <div className="text-center mb-10 fade-up">
-        <div className="inline-flex items-center gap-2 bg-white border border-border rounded-full px-4 py-1.5 mb-6 shadow-sm">
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: scoreColor }} />
-          <span className="text-xs font-mono text-muted uppercase tracking-widest">{scoreLabel}</span>
-        </div>
-        <h2 className="font-display text-3xl md:text-4xl font-700 text-text-primary mb-3">
-          Váš audit je připraven
-        </h2>
-        <p className="text-text-secondary">
-          Zadejte kontakt pro zobrazení kompletních výsledků a doporučení
-        </p>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-8 items-start">
-
-        {/* ── Score preview ── */}
+        {/* ── Left: Score preview ── */}
         <div className="fade-up fade-up-1">
           <div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
 
-            {/* Overall score */}
-            <div className="flex items-center gap-6 mb-6">
-              <ScoreRing score={score} size={90} strokeWidth={7} />
+            {/* Score row */}
+            <div className="flex items-center gap-5 mb-4">
+              <ScoreRing score={score} size={88} strokeWidth={7} />
               <div>
-                <div className="font-display text-4xl font-700" style={{ color: scoreColor }}>
-                  {score}<span className="text-muted text-xl font-400">/100</span>
+                <div className="font-display text-2xl font-700" style={{ color: scoreColor }}>
+                  {scoreLabel}
                 </div>
-                <div className="text-text-secondary text-sm mt-1">{scoreLabel}</div>
-                <div className="text-muted text-xs font-mono mt-1">
+                <div className="text-text-secondary text-sm mt-1">
                   {auditData.pagesAnalyzed} stránek · {auditData.brokenLinksCount} broken linků
                 </div>
+                {problemsCount > 0 && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 rounded-full px-2.5 py-0.5 text-xs font-600">
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    Zjištěno {problemsCount} problémů
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Category scores */}
-            <div className="space-y-3 mb-6">
+            {/* Category label */}
+            <div className="text-xs font-mono text-muted uppercase tracking-wide mb-3">
+              Přehled kategorií
+            </div>
+
+            {/* Category bars */}
+            <div className="space-y-2.5 mb-6">
               {Object.entries(auditData.categoryScores || {}).map(([label, val]) => (
                 <CategoryBar key={label} label={label} score={val} />
               ))}
             </div>
 
-            {/* Blurred issue teaser */}
-            <div className="border-t border-border pt-4">
-              <div className="text-xs font-mono text-muted mb-3 uppercase tracking-wide">Nalezené problémy</div>
-              <div className="blur-gate space-y-2">
-                {(auditData.topIssues || []).slice(0, 3).map((issue, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                    <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
-                    <span className="text-text-secondary">{issue}</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-center py-4 text-muted text-xs font-mono">
-                  🔒 Odemkněte kompletní výsledky
+            {/* Lock section */}
+            <div className="border-t border-border pt-5 text-center">
+              <div className="flex justify-center mb-3">
+                <div className="w-11 h-11 bg-gray-900 rounded-full flex items-center justify-center">
+                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path strokeLinecap="round" d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
                 </div>
               </div>
+              <div className="text-sm font-600 text-text-primary mb-1">Odemkněte kompletní výsledky</div>
+              <div className="text-xs text-muted">Zjistěte přesně, co a jak na webu opravit</div>
             </div>
           </div>
         </div>
 
-        {/* ── HubSpot embedded form ── */}
+        {/* ── Right: Custom form ── */}
         <div className="fade-up fade-up-2">
-          <div className="bg-white border border-accent/30 rounded-2xl p-6 shadow-sm">
-            <div className="mb-5">
-              <h3 className="font-display text-xl font-700 text-text-primary mb-2">
-                Zobrazte kompletní výsledky
-              </h3>
-              <p className="text-text-secondary text-sm">
-                Dostanete plný report s konkrétními doporučeními jak zlepšit obsah a zvýšit konverze.
-              </p>
-            </div>
-
-            {/* Loading skeleton shown until HubSpot renders the form */}
-            {!formReady && (
-              <div className="space-y-4 animate-pulse">
-                {[1, 2, 3].map(i => (
-                  <div key={i}>
-                    <div className="h-3 w-16 bg-surface rounded mb-2" />
-                    <div className="h-11 bg-surface rounded-lg border border-border" />
-                  </div>
-                ))}
-                <div className="h-12 bg-accent/10 rounded-lg" />
-              </div>
-            )}
-
-            {/* HubSpot form mount point */}
-            <div id="hs-form-target" className={formReady ? '' : 'hidden'} />
-
-            <p className="text-center text-xs text-muted mt-4">
-              Vaše data jsou v bezpečí. Neposíláme spam.
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
+            <h3 className="font-display text-xl font-700 text-text-primary mb-1">
+              Zobrazte kompletní výsledky
+            </h3>
+            <p className="text-text-secondary text-sm mb-6">
+              Dostanete plný report s konkrétními doporučeními pro {auditData.url?.replace(/^https?:\/\//, '').replace(/\/$/, '')}.
             </p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Jméno */}
+              <div>
+                <label className="block text-xs font-600 text-text-secondary mb-1.5">
+                  Jméno <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={e => { setFirstName(e.target.value); setFieldErrors(p => ({ ...p, firstName: null })) }}
+                  placeholder="Jan Novák"
+                  className={`w-full bg-surface border rounded-lg px-3.5 py-2.5 text-sm text-text-primary outline-none transition-colors
+                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,104,64,0.08)]
+                    ${fieldErrors.firstName ? 'border-red-400 bg-red-50' : 'border-border'}`}
+                />
+                {fieldErrors.firstName && <p className="text-xs text-red-500 mt-1">{fieldErrors.firstName}</p>}
+              </div>
+
+              {/* E-mail */}
+              <div>
+                <label className="block text-xs font-600 text-text-secondary mb-1.5">
+                  Pracovní e-mail <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: null })) }}
+                  placeholder="jan@vasespolecnost.cz"
+                  className={`w-full bg-surface border rounded-lg px-3.5 py-2.5 text-sm text-text-primary outline-none transition-colors
+                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,104,64,0.08)]
+                    ${fieldErrors.email ? 'border-red-400 bg-red-50' : 'border-border'}`}
+                />
+                {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
+              </div>
+
+              {/* Telefon */}
+              <div>
+                <label className="block text-xs font-600 text-text-secondary mb-1.5">
+                  Telefon <span className="text-muted font-normal">(nepovinné)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="+420 123 456 789"
+                  className="w-full bg-surface border border-border rounded-lg px-3.5 py-2.5 text-sm text-text-primary outline-none transition-colors
+                    placeholder-muted focus:border-accent focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,104,64,0.08)]"
+                />
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-accent text-white font-display font-700 rounded-lg py-3 text-sm
+                  hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              >
+                {submitting ? 'Odesílám...' : 'Zobrazit výsledky →'}
+              </button>
+            </form>
+
+            <div className="flex items-center justify-center gap-2 mt-4 text-xs text-muted">
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>
+              Vaše data jsou v bezpečí. Neposíláme spam.
+            </div>
           </div>
         </div>
       </div>

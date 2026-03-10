@@ -3,6 +3,7 @@ import UrlInput from './components/UrlInput'
 import AuditProgress from './components/AuditProgress'
 import LeadGate from './components/LeadGate'
 import Results from './components/Results'
+import ScoreRing from './components/ScoreRing'
 
 // Steps: 'input' → 'loading' → 'gate' → 'results'
 
@@ -40,10 +41,9 @@ export default function App() {
   }
 
   async function submitLead(contactData) {
-    // Store contact for PDF upload later
     setContact(contactData)
 
-    // Fire-and-forget HubSpot save – don't block showing results
+    // Fire-and-forget save to HubSpot
     fetch(`${import.meta.env.VITE_API_URL}/api/lead`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,58 +61,85 @@ export default function App() {
     setContact(null)
   }
 
+  const score = auditData?.overallScore
+  const scoreCol = score >= 70 ? '#22c55e' : score >= 50 ? '#F59E0B' : '#ef4444'
+  const scoreLbl = score >= 70 ? 'Dobrý základ' : score >= 50 ? 'Potřebuje práci' : 'Kritický stav'
+
   return (
     <div className="relative min-h-screen bg-base overflow-x-hidden">
-      {/* Subtle bg gradient */}
-      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" />
 
       {/* Header */}
-      <header className="relative z-10 bg-white border-b border-border">
+      <header className="sticky top-0 z-40 bg-white border-b border-border">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          {/* Logo */}
           <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <span className="text-white font-bold text-sm font-display">G</span>
+              <span className="text-white font-bold text-sm">G</span>
             </div>
-            <span className="font-display font-700 text-base text-text-primary tracking-tight">
+            <span className="font-display font-700 text-base text-text-primary">
               Get<span className="text-accent">Found</span>
             </span>
           </a>
 
-          {/* Badge */}
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent pulse-glow" />
-            <span className="text-xs font-mono text-muted hidden sm:block">Content Audit Tool</span>
+          <div className="flex items-center gap-3">
+            {step === 'results' && (
+              <button
+                onClick={restart}
+                className="text-xs font-mono text-muted hover:text-accent transition-colors hidden sm:block"
+              >
+                ← Nový audit
+              </button>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-accent pulse-glow" />
+              <span className="text-xs font-mono text-muted hidden sm:block">Content Audit Tool</span>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="relative z-10">
-        {step === 'input' && (
-          <UrlInput onSubmit={startAudit} error={error} />
-        )}
-        {step === 'loading' && (
-          <AuditProgress url={url} />
-        )}
-        {step === 'gate' && auditData && (
-          <LeadGate auditData={auditData} onSubmit={submitLead} />
-        )}
-        {step === 'results' && auditData && (
-          <Results auditData={auditData} onRestart={restart} contact={contact} />
-        )}
+      <main>
+        {step === 'input'   && <UrlInput onSubmit={startAudit} error={error} />}
+        {step === 'loading' && <AuditProgress url={url} />}
+        {step === 'gate'    && auditData && <LeadGate auditData={auditData} onSubmit={submitLead} />}
+        {step === 'results' && auditData && <Results auditData={auditData} onRestart={restart} contact={contact} />}
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border mt-16 py-6">
-        <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-muted">© 2025 GetFound s.r.o. – Nástroj pro analýzu obsahu e-shopů</p>
-          <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer"
-            className="text-xs text-muted hover:text-accent transition-colors">
-            getfound.cz →
-          </a>
+      {/* Footer (hidden in results – sticky bar takes over) */}
+      {step !== 'results' && (
+        <footer className="border-t border-border mt-16 py-6">
+          <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-muted">© 2025 GetFound s.r.o. – Nástroj pro analýzu obsahu e-shopů</p>
+            <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer"
+              className="text-xs text-muted hover:text-accent transition-colors">
+              getfound.cz →
+            </a>
+          </div>
+        </footer>
+      )}
+
+      {/* ── Sticky bottom bar (results only) ── */}
+      {step === 'results' && auditData && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+          <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <ScoreRing score={score} size={40} strokeWidth={4} />
+              <div>
+                <div className="text-xs text-muted">Celkové skóre</div>
+                <div className="text-sm font-600" style={{ color: scoreCol }}>{scoreLbl}</div>
+              </div>
+            </div>
+            <a
+              href="https://getfound.cz"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-accent text-white font-display font-700 text-sm rounded-lg px-5 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
+            >
+              Domluvit konzultaci
+            </a>
+          </div>
         </div>
-      </footer>
+      )}
     </div>
   )
 }
