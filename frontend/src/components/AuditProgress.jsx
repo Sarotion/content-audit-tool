@@ -11,7 +11,7 @@ const STEPS = [
 
 const TOTAL_DURATION = STEPS.reduce((s, step) => s + step.duration, 0)
 
-function TerminalLine({ text, delay = 0, type = 'info' }) {
+function LogLine({ text, delay = 0, type = 'info' }) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -23,8 +23,8 @@ function TerminalLine({ text, delay = 0, type = 'info' }) {
 
   const colors = {
     info: 'text-text-secondary',
-    success: 'text-accent',
-    warn: 'text-yellow-400',
+    success: 'text-green-600',
+    warn: 'text-yellow-600',
     dim: 'text-muted'
   }
 
@@ -41,7 +41,7 @@ function TerminalLine({ text, delay = 0, type = 'info' }) {
 export default function AuditProgress({ url }) {
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState(0)
-  const [terminalLines, setTerminalLines] = useState([])
+  const [logLines, setLogLines] = useState([])
 
   // Simulate progress
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function AuditProgress({ url }) {
     return () => clearInterval(interval)
   }, [])
 
-  // Build terminal lines
+  // Build log lines
   useEffect(() => {
     const lines = [
       { text: `Spouštím audit: ${url}`, delay: 200, type: 'info' },
@@ -78,17 +78,15 @@ export default function AuditProgress({ url }) {
       { text: 'Prověřuji OpenGraph a schema.org data', delay: 19000, type: 'dim' },
       { text: 'Počítám celkové skóre...', delay: 25000, type: 'info' },
     ]
-    setTerminalLines(lines)
+    setLogLines(lines)
   }, [url])
-
-  const stepsDone = STEPS.filter((_, i) => i < currentStep).length
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-20">
       {/* Header */}
       <div className="text-center mb-12 fade-up">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-card border border-border mb-6">
-          <svg className="animate-spin" width="28" height="28" fill="none" stroke="#4ade80" strokeWidth="2" viewBox="0 0 24 24">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-light border border-accent/20 mb-6">
+          <svg className="animate-spin" width="28" height="28" fill="none" stroke="#B72C6A" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/>
           </svg>
         </div>
@@ -106,9 +104,9 @@ export default function AuditProgress({ url }) {
           </span>
           <span className="text-xs font-mono text-accent">{Math.round(progress)}%</span>
         </div>
-        <div className="h-1.5 bg-card rounded-full overflow-hidden border border-border">
+        <div className="h-1.5 bg-surface rounded-full overflow-hidden border border-border">
           <div
-            className="h-full bg-gradient-to-r from-accent to-green-400 rounded-full transition-all duration-200"
+            className="h-full bg-accent rounded-full transition-all duration-200"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -121,10 +119,10 @@ export default function AuditProgress({ url }) {
             key={step.id}
             className={`flex items-center gap-2 text-xs rounded-lg px-3 py-2 border transition-all duration-300 ${
               i < currentStep
-                ? 'border-accent/30 bg-accent/5 text-accent'
+                ? 'border-accent/30 bg-accent-light text-accent'
                 : i === currentStep
-                ? 'border-border bg-card text-text-primary animate-pulse'
-                : 'border-border/30 text-muted'
+                ? 'border-border-mid bg-white text-text-primary animate-pulse'
+                : 'border-border text-muted bg-surface'
             }`}
           >
             <span className="shrink-0">
@@ -135,17 +133,15 @@ export default function AuditProgress({ url }) {
         ))}
       </div>
 
-      {/* Terminal output */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border">
-          <div className="w-3 h-3 rounded-full bg-red-500/60" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-          <div className="w-3 h-3 rounded-full bg-green-500/60" />
-          <span className="ml-2 text-xs font-mono text-muted">audit.log</span>
+      {/* Log output */}
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-white">
+          <div className="w-1.5 h-1.5 rounded-full bg-accent pulse-glow" />
+          <span className="text-xs font-mono text-muted">audit.log</span>
         </div>
         <div className="p-4 space-y-1.5 min-h-[160px]">
-          {terminalLines.map((line, i) => (
-            <TerminalLine key={i} {...line} />
+          {logLines.map((line, i) => (
+            <LogLine key={i} {...line} />
           ))}
           <div className="flex items-center gap-1 font-mono text-xs text-accent mt-1">
             <span>›</span>

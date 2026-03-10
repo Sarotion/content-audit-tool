@@ -2,9 +2,9 @@ import { useState } from 'react'
 import ScoreRing from './ScoreRing'
 
 const PRIORITY_COLORS = {
-  'vysoká': { bg: 'bg-red-950/40', border: 'border-red-800/50', text: 'text-red-400', badge: 'bg-red-900/60' },
-  'střední': { bg: 'bg-yellow-950/40', border: 'border-yellow-800/50', text: 'text-yellow-400', badge: 'bg-yellow-900/60' },
-  'nízká': { bg: 'bg-blue-950/40', border: 'border-blue-800/50', text: 'text-blue-400', badge: 'bg-blue-900/60' }
+  'vysoká': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', badge: 'bg-red-100' },
+  'střední': { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-100' },
+  'nízká':   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100' }
 }
 
 function IssueItem({ text, type = 'issue' }) {
@@ -12,10 +12,10 @@ function IssueItem({ text, type = 'issue' }) {
   return (
     <div className={`flex items-start gap-2 text-xs rounded-lg px-3 py-2 border ${
       isIssue
-        ? 'bg-red-950/20 border-red-900/30 text-text-secondary'
-        : 'bg-green-950/20 border-green-900/30 text-text-secondary'
+        ? 'bg-red-50 border-red-200 text-text-secondary'
+        : 'bg-green-50 border-green-200 text-text-secondary'
     }`}>
-      <span className={`shrink-0 mt-0.5 ${isIssue ? 'text-red-400' : 'text-accent'}`}>
+      <span className={`shrink-0 mt-0.5 ${isIssue ? 'text-red-500' : 'text-green-600'}`}>
         {isIssue ? '⚠' : '✓'}
       </span>
       <span>{text}</span>
@@ -25,16 +25,16 @@ function IssueItem({ text, type = 'issue' }) {
 
 function CheckSection({ title, check, icon }) {
   if (!check) return null
-  const scoreColor = check.score >= 71 ? '#4ade80' : check.score >= 41 ? '#facc15' : '#f87171'
+  const scoreColor = check.score >= 71 ? '#22c55e' : check.score >= 41 ? '#F5D127' : '#ef4444'
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
+    <div className="bg-white border border-border rounded-xl p-4 audit-card">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-base">{icon}</span>
           <span className="text-sm font-body font-500 text-text-primary">{title}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-1 w-16 bg-surface rounded-full overflow-hidden">
+          <div className="h-1 w-16 bg-surface rounded-full overflow-hidden border border-border">
             <div className="h-full rounded-full" style={{ width: `${check.score}%`, backgroundColor: scoreColor }} />
           </div>
           <span className="text-xs font-mono" style={{ color: scoreColor }}>{check.score}</span>
@@ -51,9 +51,9 @@ function CheckSection({ title, check, icon }) {
 
 function AICard({ title, data, icon }) {
   if (!data) return null
-  const scoreColor = data.score >= 71 ? '#4ade80' : data.score >= 41 ? '#facc15' : '#f87171'
+  const scoreColor = data.score >= 71 ? '#22c55e' : data.score >= 41 ? '#F5D127' : '#ef4444'
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
+    <div className="bg-white border border-border rounded-xl p-4 audit-card">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span>{icon}</span>
@@ -77,14 +77,14 @@ function AICard({ title, data, icon }) {
 
 function PageDetail({ page }) {
   const [open, setOpen] = useState(false)
-  const scoreColor = page.score >= 71 ? '#4ade80' : page.score >= 41 ? '#facc15' : '#f87171'
+  const scoreColor = page.score >= 71 ? '#22c55e' : page.score >= 41 ? '#F5D127' : '#ef4444'
   const typeLabels = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', other: 'Ostatní' }
 
   return (
-    <div className="border border-border rounded-xl overflow-hidden">
+    <div className="border border-border rounded-xl overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-card hover:bg-surface/50 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-surface transition-colors text-left"
       >
         <span className="w-10 h-10 flex items-center justify-center rounded-lg bg-surface shrink-0">
           <ScoreRing score={page.score} size={36} strokeWidth={4} />
@@ -99,7 +99,7 @@ function PageDetail({ page }) {
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-2 border-t border-border bg-surface/20 space-y-3">
+        <div className="px-4 pb-4 pt-2 border-t border-border bg-surface space-y-3">
           {/* Rule checks */}
           <div className="grid grid-cols-2 gap-2">
             {page.checks && Object.entries({
@@ -112,10 +112,10 @@ function PageDetail({ page }) {
               'OpenGraph': [page.checks.openGraph, '📣'],
               'URL': [page.checks.url, '🌐']
             }).map(([label, [check, icon]]) => check ? (
-              <div key={label} className="flex items-center justify-between bg-card rounded-lg px-3 py-2 border border-border">
+              <div key={label} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-border">
                 <span className="text-xs text-muted">{icon} {label}</span>
                 <span className="text-xs font-mono" style={{
-                  color: check.score >= 71 ? '#4ade80' : check.score >= 41 ? '#facc15' : '#f87171'
+                  color: check.score >= 71 ? '#22c55e' : check.score >= 41 ? '#F5D127' : '#ef4444'
                 }}>{check.score}</span>
               </div>
             ) : null)}
@@ -139,7 +139,7 @@ function PageDetail({ page }) {
 export default function Results({ auditData, onRestart }) {
   const [tab, setTab] = useState('overview')
   const score = auditData.overallScore
-  const scoreColor = score >= 71 ? '#4ade80' : score >= 41 ? '#facc15' : '#f87171'
+  const scoreColor = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
   const scoreLabel = score >= 71 ? 'Dobrý základ' : score >= 41 ? 'Potřebuje práci' : 'Kritický stav'
 
   const tabs = [
@@ -153,18 +153,18 @@ export default function Results({ auditData, onRestart }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-10 fade-up">
         <div>
-          <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-4 py-1.5 mb-4">
+          <div className="inline-flex items-center gap-2 bg-white border border-border rounded-full px-4 py-1.5 mb-4 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: scoreColor }} />
             <span className="text-xs font-mono text-muted uppercase tracking-widest">{scoreLabel}</span>
           </div>
-          <h2 className="font-display text-3xl font-800 text-text-primary mb-1">
+          <h2 className="font-display text-3xl font-700 text-text-primary mb-1">
             Výsledky auditu
           </h2>
           <p className="text-muted font-mono text-sm">{auditData.url}</p>
         </div>
         <button
           onClick={onRestart}
-          className="text-xs font-mono text-muted border border-border rounded-lg px-4 py-2 hover:border-accent hover:text-accent transition-colors"
+          className="text-xs font-mono text-muted border border-border rounded-lg px-4 py-2 hover:border-accent hover:text-accent transition-colors bg-white"
         >
           ← Nový audit
         </button>
@@ -172,23 +172,23 @@ export default function Results({ auditData, onRestart }) {
 
       {/* Overview cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 fade-up fade-up-1">
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+        <div className="bg-white border border-border rounded-xl p-4 flex items-center gap-4 shadow-sm">
           <ScoreRing score={score} size={56} strokeWidth={5} />
           <div>
             <div className="text-xs text-muted">Celkové skóre</div>
             <div className="font-display text-lg font-700" style={{ color: scoreColor }}>{scoreLabel}</div>
           </div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
           <div className="text-2xl font-display font-700 text-text-primary">{auditData.pagesAnalyzed}</div>
           <div className="text-xs text-muted mt-1">stránek auditováno</div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-display font-700 text-red-400">{auditData.brokenLinksCount}</div>
+        <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
+          <div className="text-2xl font-display font-700 text-red-500">{auditData.brokenLinksCount}</div>
           <div className="text-xs text-muted mt-1">broken linků</div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-display font-700 text-yellow-400">
+        <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
+          <div className="text-2xl font-display font-700 text-yellow-600">
             {(auditData.duplicateTitles?.length || 0) + (auditData.duplicateDescriptions?.length || 0)}
           </div>
           <div className="text-xs text-muted mt-1">duplicit nalezeno</div>
@@ -197,7 +197,7 @@ export default function Results({ auditData, onRestart }) {
 
       {/* Summary */}
       {auditData.overallSummary && (
-        <div className="bg-card border border-accent/20 rounded-xl p-5 mb-8 fade-up fade-up-2">
+        <div className="bg-accent-light border border-accent/20 rounded-xl p-5 mb-8 fade-up fade-up-2">
           <div className="flex items-start gap-3">
             <span className="text-accent text-lg mt-0.5">✦</span>
             <div>
@@ -233,13 +233,13 @@ export default function Results({ auditData, onRestart }) {
             <h3 className="text-xs font-mono text-muted uppercase tracking-wide mb-4">Skóre po oblastech</h3>
             <div className="grid md:grid-cols-2 gap-3">
               {Object.entries(auditData.categoryScores || {}).map(([label, score]) => {
-                const c = score >= 71 ? '#4ade80' : score >= 41 ? '#facc15' : '#f87171'
+                const c = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
                 return (
-                  <div key={label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+                  <div key={label} className="bg-white border border-border rounded-xl p-4 flex items-center gap-4 shadow-sm">
                     <div className="text-2xl font-display font-700 shrink-0 w-12" style={{ color: c }}>{score}</div>
                     <div className="flex-1">
                       <div className="text-sm text-text-primary mb-1.5">{label}</div>
-                      <div className="h-1 bg-surface rounded-full overflow-hidden">
+                      <div className="h-1 bg-surface rounded-full overflow-hidden border border-border">
                         <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: c }} />
                       </div>
                     </div>
@@ -279,8 +279,8 @@ export default function Results({ auditData, onRestart }) {
               <h3 className="text-xs font-mono text-muted uppercase tracking-wide mb-4">Broken linky</h3>
               <div className="space-y-1">
                 {auditData.brokenLinks.map((link, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-card border border-red-900/30 rounded-lg px-3 py-2">
-                    <span className="text-red-400 text-xs">404</span>
+                  <div key={i} className="flex items-center gap-2 bg-white border border-red-200 rounded-lg px-3 py-2">
+                    <span className="text-red-500 text-xs font-mono font-600">404</span>
                     <span className="text-xs font-mono text-muted truncate">{link}</span>
                   </div>
                 ))}
@@ -321,7 +321,7 @@ export default function Results({ auditData, onRestart }) {
                       </p>
                     )}
                   </div>
-                  <span className={`text-2xl font-display font-800 ${styles.text}`}>{String(i + 1).padStart(2, '0')}</span>
+                  <span className={`text-2xl font-display font-700 ${styles.text}`}>{String(i + 1).padStart(2, '0')}</span>
                 </div>
               </div>
             )
@@ -344,8 +344,8 @@ export default function Results({ auditData, onRestart }) {
             <div className="mt-6">
               <h3 className="text-xs font-mono text-muted uppercase tracking-wide mb-4">Keyword kanibalizace</h3>
               {auditData.keywordCannibalization.map((item, i) => (
-                <div key={i} className="bg-card border border-yellow-900/30 rounded-xl p-4 mb-2">
-                  <div className="text-sm font-mono text-yellow-400 mb-2">"{item.keyword}"</div>
+                <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-2">
+                  <div className="text-sm font-mono text-yellow-700 mb-2">"{item.keyword}"</div>
                   <div className="space-y-1">
                     {(item.urls || []).map((url, j) => (
                       <div key={j} className="text-xs font-mono text-muted truncate">→ {url}</div>
@@ -359,7 +359,7 @@ export default function Results({ auditData, onRestart }) {
       )}
 
       {/* CTA */}
-      <div className="mt-12 bg-gradient-to-br from-card to-surface border border-accent/20 rounded-2xl p-8 text-center fade-up">
+      <div className="mt-12 bg-accent-light border border-accent/20 rounded-2xl p-8 text-center fade-up">
         <div className="text-accent font-mono text-xs uppercase tracking-widest mb-3">Chcete to napravit?</div>
         <h3 className="font-display text-2xl font-700 text-text-primary mb-3">
           Pomůžeme vám s obsahem
@@ -369,8 +369,8 @@ export default function Results({ auditData, onRestart }) {
           Ozveme se vám s konkrétním návrhem.
         </p>
         <a
-          href="mailto:info@vaseagency.cz"
-          className="inline-flex items-center gap-2 bg-accent text-black font-display font-700 rounded-lg px-8 py-3 hover:bg-green-300 transition-colors"
+          href="mailto:info@getfound.cz"
+          className="inline-flex items-center gap-2 bg-accent text-white font-display font-700 rounded-lg px-8 py-3 hover:bg-accent-hover transition-colors"
         >
           Domluvit konzultaci →
         </a>

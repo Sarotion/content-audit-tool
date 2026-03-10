@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ScoreRing from './ScoreRing'
 
 function CategoryBar({ label, score }) {
-  const color = score >= 71 ? '#4ade80' : score >= 41 ? '#facc15' : '#f87171'
+  const color = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
   return (
     <div className="flex items-center gap-3">
       <div className="w-28 text-xs text-text-secondary shrink-0 text-right">{label}</div>
@@ -23,7 +23,7 @@ export default function LeadGate({ auditData, onSubmit }) {
   const [errors, setErrors] = useState({})
 
   const score = auditData.overallScore
-  const scoreColor = score >= 71 ? '#4ade80' : score >= 41 ? '#facc15' : '#f87171'
+  const scoreColor = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
   const scoreLabel = score >= 71 ? 'Dobrý základ' : score >= 41 ? 'Potřebuje práci' : 'Kritický stav'
 
   function validate() {
@@ -45,11 +45,11 @@ export default function LeadGate({ auditData, onSubmit }) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
       <div className="text-center mb-10 fade-up">
-        <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-4 py-1.5 mb-6">
+        <div className="inline-flex items-center gap-2 bg-white border border-border rounded-full px-4 py-1.5 mb-6 shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: scoreColor }} />
           <span className="text-xs font-mono text-muted uppercase tracking-widest">{scoreLabel}</span>
         </div>
-        <h2 className="font-display text-3xl md:text-4xl font-800 text-text-primary mb-3">
+        <h2 className="font-display text-3xl md:text-4xl font-700 text-text-primary mb-3">
           Váš audit je připraven
         </h2>
         <p className="text-text-secondary">
@@ -60,12 +60,12 @@ export default function LeadGate({ auditData, onSubmit }) {
       <div className="grid md:grid-cols-2 gap-8 items-start">
         {/* Score preview */}
         <div className="fade-up fade-up-1">
-          <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
             {/* Overall score */}
             <div className="flex items-center gap-6 mb-6">
               <ScoreRing score={score} size={90} strokeWidth={7} />
               <div>
-                <div className="font-display text-4xl font-800" style={{ color: scoreColor }}>
+                <div className="font-display text-4xl font-700" style={{ color: scoreColor }}>
                   {score}<span className="text-muted text-xl font-400">/100</span>
                 </div>
                 <div className="text-text-secondary text-sm mt-1">{scoreLabel}</div>
@@ -84,11 +84,11 @@ export default function LeadGate({ auditData, onSubmit }) {
 
             {/* Teaser issues (blurred) */}
             <div className="border-t border-border pt-4">
-              <div className="text-xs font-mono text-muted mb-3">NALEZENÉ PROBLÉMY</div>
+              <div className="text-xs font-mono text-muted mb-3 uppercase tracking-wide">Nalezené problémy</div>
               <div className="blur-gate space-y-2">
                 {(auditData.topIssues || []).slice(0, 3).map((issue, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs bg-red-950/30 border border-red-900/30 rounded-lg px-3 py-2">
-                    <span className="text-red-400 shrink-0 mt-0.5">⚠</span>
+                  <div key={i} className="flex items-start gap-2 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <span className="text-red-500 shrink-0 mt-0.5">⚠</span>
                     <span className="text-text-secondary">{issue}</span>
                   </div>
                 ))}
@@ -102,7 +102,7 @@ export default function LeadGate({ auditData, onSubmit }) {
 
         {/* Lead form */}
         <div className="fade-up fade-up-2">
-          <div className="bg-card border border-accent/20 rounded-2xl p-6">
+          <div className="bg-white border border-accent/30 rounded-2xl p-6 shadow-sm">
             <div className="mb-6">
               <h3 className="font-display text-xl font-700 text-text-primary mb-2">
                 Zobrazte kompletní výsledky
@@ -124,9 +124,9 @@ export default function LeadGate({ auditData, onSubmit }) {
                   onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
                   className={`w-full bg-surface border rounded-lg px-4 py-3 text-sm text-text-primary outline-none
                     focus:border-accent transition-colors placeholder-muted
-                    ${errors.firstName ? 'border-red-500' : 'border-border'}`}
+                    ${errors.firstName ? 'border-red-400' : 'border-border'}`}
                 />
-                {errors.firstName && <p className="text-red-400 text-xs mt-1">{errors.firstName}</p>}
+                {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
               </div>
 
               <div>
@@ -140,9 +140,9 @@ export default function LeadGate({ auditData, onSubmit }) {
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   className={`w-full bg-surface border rounded-lg px-4 py-3 text-sm text-text-primary outline-none
                     focus:border-accent transition-colors placeholder-muted
-                    ${errors.email ? 'border-red-500' : 'border-border'}`}
+                    ${errors.email ? 'border-red-400' : 'border-border'}`}
                 />
-                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
 
               <div>
@@ -162,8 +162,8 @@ export default function LeadGate({ auditData, onSubmit }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-accent text-black font-display font-700 rounded-lg py-3.5 text-sm
-                  hover:bg-green-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed
+                className="w-full bg-accent text-white font-display font-700 rounded-lg py-3.5 text-sm
+                  hover:bg-accent-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed
                   flex items-center justify-center gap-2"
               >
                 {loading ? (

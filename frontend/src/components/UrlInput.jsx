@@ -2,11 +2,11 @@ import { useState } from 'react'
 
 const EXAMPLES = ['mujeshop.cz', 'nakupuj.cz', 'moda-online.cz']
 
-function FeaturePill({ icon, label }) {
+function FeaturePill({ label }) {
   return (
-    <div className="flex items-center gap-2 bg-card border border-border rounded-full px-4 py-1.5">
-      <span className="text-accent">{icon}</span>
-      <span className="text-xs text-text-secondary font-body">{label}</span>
+    <div className="flex items-center gap-1.5 bg-accent-light border border-accent/20 rounded-full px-3 py-1.5">
+      <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+      <span className="text-xs text-accent font-body font-500">{label}</span>
     </div>
   )
 }
@@ -14,7 +14,7 @@ function FeaturePill({ icon, label }) {
 function StatItem({ value, label }) {
   return (
     <div className="text-center">
-      <div className="font-display text-2xl font-bold text-accent">{value}</div>
+      <div className="font-display text-3xl font-700 text-accent">{value}</div>
       <div className="text-xs text-muted mt-1">{label}</div>
     </div>
   )
@@ -33,12 +33,12 @@ export default function UrlInput({ onSubmit, error }) {
     <div className="max-w-4xl mx-auto px-6 py-16 md:py-24">
       {/* Hero */}
       <div className="text-center mb-14 fade-up fade-up-1">
-        <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-4 py-1.5 mb-8">
+        <div className="inline-flex items-center gap-2 bg-accent-light border border-accent/20 rounded-full px-4 py-1.5 mb-8">
           <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-          <span className="text-xs font-mono text-muted uppercase tracking-widest">Zdarma · Bez registrace</span>
+          <span className="text-xs font-body font-500 text-accent uppercase tracking-widest">Zdarma · Bez registrace</span>
         </div>
 
-        <h1 className="font-display text-4xl md:text-6xl font-800 text-text-primary leading-tight mb-6">
+        <h1 className="font-display text-4xl md:text-6xl font-700 text-text-primary leading-tight mb-6">
           Víte, proč váš e-shop<br />
           <span className="text-accent">nezíská více zákazníků?</span>
         </h1>
@@ -52,11 +52,11 @@ export default function UrlInput({ onSubmit, error }) {
       {/* URL Input */}
       <div className="max-w-2xl mx-auto mb-8 fade-up fade-up-2">
         <form onSubmit={handleSubmit}>
-          <div className={`relative rounded-xl border transition-all duration-200 ${
+          <div className={`relative rounded-xl border-2 transition-all duration-200 bg-white shadow-sm ${
             focused
-              ? 'border-accent shadow-[0_0_0_3px_rgba(74,222,128,0.15)]'
-              : 'border-border'
-          } bg-card`}>
+              ? 'border-accent shadow-[0_0_0_4px_rgba(183,44,106,0.08)]'
+              : 'border-border-mid'
+          }`}>
             <div className="flex items-center">
               <div className="pl-4 pr-2 text-muted">
                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -77,9 +77,9 @@ export default function UrlInput({ onSubmit, error }) {
               <button
                 type="submit"
                 disabled={!url.trim()}
-                className="m-1.5 px-6 py-3 bg-accent text-black font-display font-700 text-sm rounded-lg
+                className="m-1.5 px-6 py-3 bg-accent text-white font-display font-600 text-sm rounded-lg
                   disabled:opacity-40 disabled:cursor-not-allowed
-                  hover:bg-green-300 transition-colors duration-150 whitespace-nowrap"
+                  hover:bg-accent-hover transition-colors duration-150 whitespace-nowrap"
               >
                 Spustit audit →
               </button>
@@ -87,7 +87,7 @@ export default function UrlInput({ onSubmit, error }) {
           </div>
 
           {error && (
-            <div className="mt-3 flex items-center gap-2 text-red-400 text-sm">
+            <div className="mt-3 flex items-center gap-2 text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
               </svg>
@@ -103,7 +103,7 @@ export default function UrlInput({ onSubmit, error }) {
             <button
               key={ex}
               onClick={() => setUrl('https://' + ex)}
-              className="text-xs font-mono text-indigo hover:text-accent transition-colors"
+              className="text-xs font-mono text-accent hover:text-accent-hover transition-colors underline underline-offset-2"
             >
               {ex}
             </button>
@@ -112,19 +112,19 @@ export default function UrlInput({ onSubmit, error }) {
       </div>
 
       {/* Feature pills */}
-      <div className="flex flex-wrap justify-center gap-3 mb-14 fade-up fade-up-3">
-        <FeaturePill icon="✦" label="Title & Meta description" />
-        <FeaturePill icon="✦" label="Kvalita produktových textů" />
-        <FeaturePill icon="✦" label="Benefit gap analýza" />
-        <FeaturePill icon="✦" label="Struktura nadpisů" />
-        <FeaturePill icon="✦" label="OpenGraph & Sdílení" />
-        <FeaturePill icon="✦" label="Broken links" />
-        <FeaturePill icon="✦" label="Schema.org data" />
-        <FeaturePill icon="✦" label="Emoční tón copy" />
+      <div className="flex flex-wrap justify-center gap-2 mb-14 fade-up fade-up-3">
+        <FeaturePill label="Title & Meta description" />
+        <FeaturePill label="Kvalita produktových textů" />
+        <FeaturePill label="Benefit gap analýza" />
+        <FeaturePill label="Struktura nadpisů" />
+        <FeaturePill label="OpenGraph & Sdílení" />
+        <FeaturePill label="Broken links" />
+        <FeaturePill label="Schema.org data" />
+        <FeaturePill label="Emoční tón copy" />
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-6 max-w-md mx-auto fade-up fade-up-4">
+      <div className="grid grid-cols-3 gap-6 max-w-sm mx-auto fade-up fade-up-4 py-8 border-t border-border">
         <StatItem value="11" label="oblastí auditu" />
         <StatItem value="<60s" label="rychlost analýzy" />
         <StatItem value="100%" label="zdarma" />

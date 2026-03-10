@@ -3,105 +3,62 @@
 @tailwind utilities;
 
 :root {
-  --base: #08080f;
-  --surface: #10101a;
-  --card: #16162a;
-  --border: #1e1e38;
-  --accent: #4ade80;
+  --base: #FFFFFF;
+  --surface: #F7F7FE;
+  --card: #FFFFFF;
+  --border: #E9E9F9;
+  --accent: #B72C6A;
 }
 
 * { box-sizing: border-box; }
 
 body {
   background: var(--base);
-  color: #f1f5f9;
+  color: #14143C;
   font-family: 'DM Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Noise texture overlay */
+/* Subtle gradient background */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  background:
+    radial-gradient(ellipse 800px 600px at 0% 0%, rgba(183,44,106,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 600px 500px at 100% 100%, rgba(245,209,39,0.05) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.4;
-}
-
-/* Animated gradient orbs */
-.orb {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(120px);
-  pointer-events: none;
-  z-index: 0;
-  animation: float 12s ease-in-out infinite;
-}
-.orb-1 {
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(74,222,128,0.08) 0%, transparent 70%);
-  top: -100px; left: -100px;
-}
-.orb-2 {
-  width: 400px; height: 400px;
-  background: radial-gradient(circle, rgba(129,140,248,0.07) 0%, transparent 70%);
-  bottom: -50px; right: -50px;
-  animation-delay: -6s;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(0, 0); }
-  33% { transform: translate(30px, -20px); }
-  66% { transform: translate(-20px, 10px); }
-}
-
-/* Scan line animation */
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-
-.scan-line {
-  position: fixed;
-  left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(74,222,128,0.15), transparent);
-  animation: scan 8s linear infinite;
-  pointer-events: none;
-  z-index: 1;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2a2a4a; }
+::-webkit-scrollbar-thumb { background: #D1D1E8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #83839C; }
 
 /* Score ring animation */
 @keyframes ring-fill {
   from { stroke-dashoffset: 283; }
 }
 
-/* Pulse for loading */
+/* Pulse for accent dot */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.3); }
-  50% { box-shadow: 0 0 0 12px rgba(74,222,128,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(183,44,106,0.25); }
+  50% { box-shadow: 0 0 0 8px rgba(183,44,106,0); }
 }
-
 .pulse-glow { animation: pulse-glow 2s infinite; }
 
 /* Fade-in */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.fade-up { animation: fadeUp 0.5s ease forwards; }
-.fade-up-1 { animation-delay: 0.1s; opacity: 0; }
-.fade-up-2 { animation-delay: 0.2s; opacity: 0; }
-.fade-up-3 { animation-delay: 0.3s; opacity: 0; }
-.fade-up-4 { animation-delay: 0.4s; opacity: 0; }
+.fade-up { animation: fadeUp 0.45s ease forwards; }
+.fade-up-1 { animation-delay: 0.05s; opacity: 0; }
+.fade-up-2 { animation-delay: 0.12s; opacity: 0; }
+.fade-up-3 { animation-delay: 0.20s; opacity: 0; }
+.fade-up-4 { animation-delay: 0.28s; opacity: 0; }
 
 /* Typewriter cursor */
 @keyframes blink {
@@ -110,23 +67,18 @@ body::before {
 }
 .cursor { animation: blink 1s infinite; }
 
-/* Progress bar */
-@keyframes progressBar {
-  from { width: 0; }
-}
-
 /* Blur gate overlay */
 .blur-gate {
-  filter: blur(6px);
+  filter: blur(5px);
   pointer-events: none;
   user-select: none;
 }
 
 /* Card hover */
 .audit-card {
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .audit-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(74,222,128,0.3);
+  box-shadow: 0 4px 20px rgba(183,44,106,0.08);
 }

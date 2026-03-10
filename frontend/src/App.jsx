@@ -57,26 +57,27 @@ export default function App() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
-      {/* Background elements */}
-      <div className="orb orb-1" />
-      <div className="orb orb-2" />
-      <div className="scan-line" />
+    <div className="relative min-h-screen bg-base overflow-x-hidden">
+      {/* Subtle bg gradient */}
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" />
 
       {/* Header */}
-      <header className="relative z-10 border-b border-border">
+      <header className="relative z-10 bg-white border-b border-border">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded bg-accent flex items-center justify-center">
-              <span className="text-base font-mono text-black font-bold">A</span>
+          {/* Logo */}
+          <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+              <span className="text-white font-bold text-sm font-display">G</span>
             </div>
-            <span className="font-display font-700 text-sm tracking-wide text-text-primary">
-              Content<span className="text-accent">Audit</span>
+            <span className="font-display font-700 text-base text-text-primary tracking-tight">
+              Get<span className="text-accent">Found</span>
             </span>
-          </div>
+          </a>
+
+          {/* Badge */}
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-accent pulse-glow" />
-            <span className="text-xs font-mono text-muted">BETA</span>
+            <span className="text-xs font-mono text-muted hidden sm:block">Content Audit Tool</span>
           </div>
         </div>
       </header>
@@ -96,6 +97,17 @@ export default function App() {
           <Results auditData={auditData} onRestart={restart} />
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-border mt-16 py-6">
+        <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-muted">© 2025 GetFound s.r.o. – Nástroj pro analýzu obsahu e-shopů</p>
+          <a href="https://getfound.cz" target="_blank" rel="noopener noreferrer"
+            className="text-xs text-muted hover:text-accent transition-colors">
+            getfound.cz →
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }
