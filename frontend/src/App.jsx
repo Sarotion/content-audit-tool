@@ -7,12 +7,16 @@ import ScoreRing from './components/ScoreRing'
 
 // Steps: 'input' → 'loading' → 'gate' → 'results'
 
-// Detect iframe embedding once at module load (stable, no React state needed).
+// Detect any kind of embedding once at module load (stable, no React state needed).
 // When embedded we:
 //   1. Remove min-h-screen → eliminates circular height dependency with postMessage
 //   2. Replace position:fixed sticky bar → fixed is relative to iframe viewport,
 //      causing overlap & wrong scrollHeight. We use a normal in-flow bar instead.
-const isEmbedded = window.self !== window.top
+//
+// Two embedding modes:
+//  – iframe:  window.self !== window.top (detected automatically)
+//  – widget:  widget.jsx sets window.__GF_EMBEDDED__ = true before mounting
+const isEmbedded = window.self !== window.top || !!window.__GF_EMBEDDED__
 
 export default function App() {
   const [step, setStep] = useState('input')
