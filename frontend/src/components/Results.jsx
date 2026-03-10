@@ -7,14 +7,14 @@ const PRIORITY_COLORS = {
   'nízká':   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100' }
 }
 
-// ─── Priority matrix helpers ────────────────────────────────────────────────
+// ─── Recommendation priority helpers ────────────────────────────────────────
 
 function getRecCategory(rec) {
   const e = rec.ease || 2
   const imp = rec.impact || 2
-  if (e === 1 && imp === 3) return 0           // 🟢 Udělej hned
-  if ((e === 1 && imp === 2) || (e === 2 && imp === 3)) return 1  // 🟡 Naplánuj
-  return 2                                     // ⚪ Až budeš mít čas
+  if (e === 1 && imp === 3) return 0
+  if ((e === 1 && imp === 2) || (e === 2 && imp === 3)) return 1
+  return 2
 }
 
 const CATEGORY_INFO = [
@@ -28,92 +28,10 @@ function DotIndicator({ value, max = 3, colorFilled = '#1B6840' }) {
     <span className="inline-flex gap-0.5">
       {Array.from({ length: max }).map((_, i) => (
         <svg key={i} width="8" height="8" viewBox="0 0 8 8">
-          <circle cx="4" cy="4" r="3.5" fill={i < value ? colorFilled : '#E5E7EB'} />
+          <circle cx="4" cy="4" r="3.5" fill={i < value ? colorFilled : '#D1D5DB'} />
         </svg>
       ))}
     </span>
-  )
-}
-
-function PriorityMatrix({ recommendations }) {
-  const recs = recommendations.filter(r => r.ease != null && r.impact != null)
-  if (recs.length === 0) return null
-
-  return (
-    <div className="bg-white border border-border rounded-xl p-5 shadow-sm mb-6">
-      <h3 className="text-sm font-700 text-text-primary mb-0.5">Prioritizační matice</h3>
-      <p className="text-xs text-muted mb-5">
-        Osa X = snadnost provedení &nbsp;·&nbsp; Osa Y = dopad na výsledky · Najeďte myší na číslo pro detail
-      </p>
-
-      <div className="flex gap-3">
-        {/* Y-axis label */}
-        <div className="flex flex-col items-center justify-between py-1 shrink-0" style={{ width: '18px' }}>
-          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#9CA3AF', lineHeight: 1 }}>Velký</span>
-          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#6B7280', fontWeight: 700, letterSpacing: '0.05em', lineHeight: 1 }}>DOPAD ↑</span>
-          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#9CA3AF', lineHeight: 1 }}>Malý</span>
-        </div>
-
-        <div className="flex-1 flex flex-col gap-2">
-          {/* Matrix grid */}
-          <div className="relative rounded-xl overflow-hidden border border-border" style={{ height: '220px' }}>
-            {/* 2×2 quadrant backgrounds */}
-            <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
-              <div style={{ background: '#F0FDF4' }} />   {/* top-left:  easy + high impact → green */}
-              <div style={{ background: '#FEFCE8' }} />   {/* top-right: hard + high impact → yellow */}
-              <div style={{ background: '#EFF6FF' }} />   {/* bot-left:  easy + low  impact → blue  */}
-              <div style={{ background: '#F9FAFB' }} />   {/* bot-right: hard + low  impact → gray  */}
-            </div>
-
-            {/* Center dividers */}
-            <div className="absolute pointer-events-none" style={{ left: '50%', top: 0, bottom: 0, width: '1px', background: '#D1D5DB' }} />
-            <div className="absolute pointer-events-none" style={{ top: '50%', left: 0, right: 0, height: '1px', background: '#D1D5DB' }} />
-
-            {/* Quadrant corner labels */}
-            <div className="absolute top-2 left-3 text-xs font-600 pointer-events-none" style={{ color: '#15803d', fontSize: '11px' }}>🟢 Udělej hned</div>
-            <div className="absolute top-2 right-3 text-xs font-600 pointer-events-none text-right" style={{ color: '#a16207', fontSize: '11px' }}>🟡 Naplánuj</div>
-            <div className="absolute bottom-2 left-3 text-xs font-600 pointer-events-none" style={{ color: '#1d4ed8', fontSize: '11px' }}>🟡 Naplánuj</div>
-            <div className="absolute bottom-2 right-3 text-xs font-600 pointer-events-none text-right" style={{ color: '#9CA3AF', fontSize: '11px' }}>⚪ Později</div>
-
-            {/* Dots */}
-            {recs.map((rec, i) => {
-              // ease 1→12%, 2→50%, 3→88% on X; impact 3→12%, 2→50%, 1→88% on Y
-              const xPct = ((rec.ease - 1) / 2) * 76 + 12
-              const yPct = ((3 - rec.impact) / 2) * 76 + 12
-              return (
-                <div
-                  key={i}
-                  className="absolute group z-10"
-                  style={{ left: `${xPct}%`, top: `${yPct}%`, transform: 'translate(-50%, -50%)' }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full text-white text-sm font-700 flex items-center justify-center cursor-default select-none border-2 border-white shadow-md"
-                    style={{ background: '#1B6840' }}
-                  >
-                    {i + 1}
-                  </div>
-                  {/* Tooltip */}
-                  <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-56 bg-gray-900 text-white text-xs rounded-xl p-3 hidden group-hover:block z-20 leading-relaxed shadow-2xl pointer-events-none">
-                    <div className="font-600 mb-1.5">{rec.action}</div>
-                    <div style={{ color: '#9CA3AF' }}>
-                      Snadnost: {rec.ease}/3 &nbsp;·&nbsp; Dopad: {rec.impact}/3
-                    </div>
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* X-axis labels */}
-          <div className="flex justify-between text-xs text-muted px-1">
-            <span>← Snadné</span>
-            <span className="font-700 text-text-secondary">SNADNOST →</span>
-            <span>Složité →</span>
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -186,163 +104,461 @@ function PageDetail({ page }) {
   )
 }
 
-// ─── Off-screen PDF template ───────────────────────────────────────────────
+// ─── 3-page PDF Template ────────────────────────────────────────────────────
+
 function PdfTemplate({ auditData, pdfRef }) {
   const score = auditData.overallScore
   const sc = scoreColor(score)
   const sl = scoreLabel(score)
   const date = new Date().toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+  const dupsCount = (auditData.duplicateTitles?.length || 0) + (auditData.duplicateDescriptions?.length || 0)
+  const pagesWithAI = (auditData.pages || []).filter(p => p.aiAnalysis).slice(0, 3)
+  const urlShort = auditData.url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
 
-  const s = {
-    page: { fontFamily: "'DM Sans', Arial, sans-serif", width: '794px', minHeight: '1123px', background: '#fff', color: '#111827', fontSize: '13px', lineHeight: '1.55', padding: '44px 48px', boxSizing: 'border-box' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '20px', marginBottom: '28px', borderBottom: '2px solid #1B6840' },
-    logo: { display: 'flex', alignItems: 'center', gap: '10px' },
-    logoBox: { width: '34px', height: '34px', background: '#1B6840', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    logoText: { fontWeight: '700', fontSize: '18px', color: '#111827' },
-    headerRight: { textAlign: 'right', color: '#9CA3AF', fontSize: '11.5px' },
-    scoreBox: { display: 'flex', alignItems: 'center', gap: '24px', background: '#ECFDF5', border: '1px solid rgba(27,104,64,0.2)', borderRadius: '12px', padding: '20px 24px', marginBottom: '24px' },
-    scoreCircle: { width: '80px', height: '80px', border: `5px solid ${sc}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    scoreNum: { fontSize: '26px', fontWeight: '700', color: sc, fontFamily: 'monospace' },
-    summaryBox: { background: '#ECFDF5', border: '1px solid rgba(27,104,64,0.2)', borderRadius: '10px', padding: '14px 16px', marginBottom: '24px' },
-    summaryLabel: { fontSize: '10px', fontWeight: '600', color: '#1B6840', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '5px' },
-    sectionTitle: { fontSize: '10px', fontWeight: '700', color: '#9CA3AF', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '12px' },
-    section: { marginBottom: '24px' },
-    catRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '9px' },
-    catLabel: { width: '150px', fontSize: '12.5px', color: '#6B7280', flexShrink: 0 },
-    catBarBg: { flex: 1, height: '7px', background: '#E5E7EB', borderRadius: '4px', overflow: 'hidden' },
-    catScore: { width: '28px', textAlign: 'right', fontSize: '12px', fontFamily: 'monospace', fontWeight: '600', flexShrink: 0 },
-    issueRow: { display: 'flex', alignItems: 'flex-start', gap: '8px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', fontSize: '12px', color: '#374151' },
-    passRow: { display: 'flex', alignItems: 'flex-start', gap: '8px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', fontSize: '12px', color: '#374151' },
-    recCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '12px 14px', marginBottom: '10px', background: '#FAFAFA' },
-    recHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' },
-    recNum: { fontSize: '18px', fontWeight: '700', color: '#1B6840', fontFamily: 'monospace', minWidth: '28px' },
-    badgeHigh: { background: '#FEE2E2', color: '#DC2626', fontSize: '9px', fontWeight: '700', padding: '2px 7px', borderRadius: '20px', textTransform: 'uppercase' },
-    badgeMid:  { background: '#FEF9C3', color: '#A16207', fontSize: '9px', fontWeight: '700', padding: '2px 7px', borderRadius: '20px', textTransform: 'uppercase' },
-    badgeLow:  { background: '#DBEAFE', color: '#1D4ED8', fontSize: '9px', fontWeight: '700', padding: '2px 7px', borderRadius: '20px', textTransform: 'uppercase' },
-    footer: { borderTop: '1px solid #E5E7EB', paddingTop: '14px', marginTop: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-    divider: { borderTop: '1px solid #E5E7EB', margin: '20px 0' },
-    twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
+  // ── Shared inline styles ──────────────────────────────────────────────────
+  const P = {
+    // Page container: exactly A4 in px, overflow hidden so slicing works cleanly
+    page: {
+      position: 'relative',
+      width: '794px',
+      height: '1123px',
+      overflow: 'hidden',
+      background: '#fff',
+      fontFamily: "'DM Sans', Arial, sans-serif",
+      fontSize: '12.5px',
+      lineHeight: '1.55',
+      color: '#111827',
+      padding: '40px 48px',
+      boxSizing: 'border-box',
+    },
+    pageBreak: { pageBreakAfter: 'always' },
+
+    // Full header (page 1)
+    header: {
+      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+      paddingBottom: '16px', marginBottom: '22px', borderBottom: '2.5px solid #1B6840',
+    },
+    // Mini header (pages 2–3)
+    miniHeader: {
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      paddingBottom: '10px', marginBottom: '18px', borderBottom: '1.5px solid #1B6840',
+    },
+    logo: { display: 'flex', alignItems: 'center', gap: '9px' },
+    logoBox: { width: '28px', height: '28px', background: '#1B6840', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    logoBoxSm: { width: '22px', height: '22px', background: '#1B6840', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+
+    // Footer: absolutely positioned inside each page div
+    footer: {
+      position: 'absolute',
+      bottom: '30px', left: '48px', right: '48px',
+      borderTop: '1px solid #E5E7EB', paddingTop: '10px',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    },
+    footerText: { fontSize: '10px', color: '#9CA3AF' },
+
+    // Content sections
+    sectionTitle: { fontSize: '9.5px', fontWeight: '700', color: '#6B7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' },
+    section: { marginBottom: '18px' },
+    divider: { borderTop: '1px solid #E5E7EB', margin: '16px 0' },
+
+    // Score box
+    scoreBox: { display: 'flex', alignItems: 'center', gap: '18px', background: '#ECFDF5', border: '1px solid rgba(27,104,64,0.2)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px' },
+    scoreCircle: { width: '68px', height: '68px', border: `4.5px solid ${sc}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    scoreNum: { fontSize: '22px', fontWeight: '700', color: sc, fontFamily: 'monospace' },
+
+    // AI summary
+    summaryBox: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '7px', padding: '10px 13px', marginBottom: '16px' },
+
+    // Category bars
+    catRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '7px' },
+    catLabel: { width: '145px', fontSize: '11.5px', color: '#374151', flexShrink: 0 },
+    catBarBg: { flex: 1, height: '5.5px', background: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' },
+    catScore: { width: '26px', textAlign: 'right', fontSize: '11px', fontFamily: 'monospace', fontWeight: '600', flexShrink: 0 },
+
+    // Issue/pass rows
+    issueRow: { display: 'flex', alignItems: 'flex-start', gap: '7px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '5px', padding: '7px 9px', marginBottom: '5px', fontSize: '11.5px', color: '#374151' },
+    passRow: { display: 'flex', alignItems: 'flex-start', gap: '7px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '5px', padding: '7px 9px', marginBottom: '5px', fontSize: '11.5px', color: '#374151' },
+
+    // Recommendation card
+    recCard: { border: '1px solid #E5E7EB', borderRadius: '7px', padding: '10px 12px', marginBottom: '8px', background: '#FAFAFA' },
+    recHeader: { display: 'flex', alignItems: 'flex-start', gap: '9px' },
+    recNum: { fontSize: '15px', fontWeight: '700', color: '#1B6840', fontFamily: 'monospace', minWidth: '22px', flexShrink: 0, paddingTop: '1px' },
+
+    // Priority/ease/impact badges
+    badgeHigh: { background: '#FEE2E2', color: '#DC2626', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
+    badgeMid:  { background: '#FEF9C3', color: '#A16207', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
+    badgeLow:  { background: '#DBEAFE', color: '#1D4ED8', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
+    badgeEasy: { background: '#DCFCE7', color: '#15803d', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
+    badgeMedium: { background: '#FEF9C3', color: '#A16207', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
+    badgeHard: { background: '#FEE2E2', color: '#DC2626', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
+    badgeImpact3: { background: '#EDE9FE', color: '#6D28D9', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
+    badgeImpact2: { background: '#E0F2FE', color: '#0369A1', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
+    badgeImpact1: { background: '#F3F4F6', color: '#6B7280', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
+
+    // Table
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' },
+    th: { padding: '6px 10px', textAlign: 'left', color: '#6B7280', fontWeight: '600', fontSize: '9.5px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' },
+    td: { padding: '5.5px 10px', borderBottom: '1px solid #F3F4F6', color: '#374151' },
+
+    // Page analysis card
+    pageCard: { border: '1px solid #E5E7EB', borderRadius: '7px', padding: '10px 12px', marginBottom: '9px', background: '#FAFAFA' },
+
+    // Link row
+    linkRow: { display: 'flex', alignItems: 'center', gap: '8px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '4px', padding: '5px 9px', marginBottom: '4px', fontSize: '10.5px', fontFamily: 'monospace', color: '#374151' },
+
+    // Two columns
+    twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
   }
 
-  function getPriorityBadge(p) {
-    if ((p || '').toLowerCase() === 'vysoká') return s.badgeHigh
-    if ((p || '').toLowerCase() === 'střední') return s.badgeMid
-    return s.badgeLow
+  function priBadge(p) {
+    if ((p || '').toLowerCase() === 'vysoká') return P.badgeHigh
+    if ((p || '').toLowerCase() === 'střední') return P.badgeMid
+    return P.badgeLow
   }
+  function easeBadge(e) {
+    if (e === 1) return { style: P.badgeEasy,   label: '⚡ Snadné' }
+    if (e === 2) return { style: P.badgeMedium, label: '⏱ Střední' }
+    return               { style: P.badgeHard,   label: '⚙ Složité' }
+  }
+  function impBadge(i) {
+    if (i === 3) return { style: P.badgeImpact3, label: '🎯 Velký dopad' }
+    if (i === 2) return { style: P.badgeImpact2, label: '📈 Střední dopad' }
+    return               { style: P.badgeImpact1, label: '➡ Malý dopad' }
+  }
+
+  // ── Shared header components ─────────────────────────────────────────────
+
+  function FullHeader() {
+    return (
+      <div style={P.header}>
+        <div>
+          <div style={P.logo}>
+            <div style={P.logoBox}><span style={{ color: '#fff', fontWeight: '800', fontSize: '14px' }}>G</span></div>
+            <span style={{ fontWeight: '700', fontSize: '17px', color: '#111827' }}>
+              Get<span style={{ color: '#1B6840' }}>Found</span>
+              <span style={{ fontWeight: '400', color: '#6B7280', fontSize: '13px' }}> Content Audit Report</span>
+            </span>
+          </div>
+          <div style={{ fontSize: '10.5px', color: '#9CA3AF', marginTop: '3px', marginLeft: '37px' }}>Automatizovaný audit obsahu e-shopu</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontWeight: '600', color: '#111827', fontSize: '12px', marginBottom: '2px' }}>{date}</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#6B7280' }}>{urlShort}</div>
+        </div>
+      </div>
+    )
+  }
+
+  function MiniHeader({ page, total }) {
+    return (
+      <div style={P.miniHeader}>
+        <div style={P.logo}>
+          <div style={P.logoBoxSm}><span style={{ color: '#fff', fontWeight: '800', fontSize: '11px' }}>G</span></div>
+          <span style={{ fontWeight: '700', fontSize: '13.5px', color: '#111827' }}>
+            Get<span style={{ color: '#1B6840' }}>Found</span>
+            <span style={{ fontWeight: '400', color: '#9CA3AF', fontSize: '11px' }}> Content Audit Report</span>
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <span style={{ fontFamily: 'monospace', fontSize: '10px', color: '#9CA3AF' }}>{urlShort}</span>
+          <span style={{ fontSize: '9.5px', color: '#9CA3AF' }}>Strana {page}/{total}</span>
+        </div>
+      </div>
+    )
+  }
+
+  function Footer({ page, total }) {
+    return (
+      <div style={P.footer}>
+        <div style={P.footerText}>Vygenerováno GetFound Content Audit Tool · {date}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={P.footerText}>Strana {page}/{total}</span>
+          <span style={{ fontSize: '10.5px', color: '#1B6840', fontWeight: '700' }}>getfound.cz</span>
+        </div>
+      </div>
+    )
+  }
+
+  const TOTAL = 3
 
   return (
     <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none' }} aria-hidden="true">
-      <div ref={pdfRef} style={s.page}>
-        <div style={s.header}>
-          <div>
-            <div style={s.logo}>
-              <div style={s.logoBox}><span style={{ color: '#fff', fontWeight: '800', fontSize: '17px' }}>G</span></div>
-              <span style={s.logoText}>Get<span style={{ color: '#1B6840' }}>Found</span> <span style={{ fontWeight: '400', color: '#9CA3AF', fontSize: '14px' }}>Content Audit Report</span></span>
-            </div>
-            <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '4px', marginLeft: '44px' }}>Automatizovaný audit obsahu e-shopu</div>
-          </div>
-          <div style={s.headerRight}>
-            <div style={{ fontWeight: '600', color: '#111827', marginBottom: '2px' }}>{date}</div>
-            <div style={{ fontFamily: 'monospace', fontSize: '11px' }}>{auditData.url}</div>
-          </div>
-        </div>
+      <div ref={pdfRef}>
 
-        <div style={s.scoreBox}>
-          <div style={s.scoreCircle}><span style={s.scoreNum}>{score}</span></div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '20px', fontWeight: '700', color: sc, marginBottom: '4px' }}>{sl}</div>
-            <div style={{ fontSize: '12px', color: '#9CA3AF' }}>
-              Celkové skóre: <strong style={{ color: sc }}>{score}/100</strong>
-              &nbsp;·&nbsp;{auditData.pagesAnalyzed} stránek auditováno
-              &nbsp;·&nbsp;{auditData.brokenLinksCount} broken linků
-            </div>
-          </div>
-        </div>
+        {/* ══════════════ PAGE 1 – Executive Summary ══════════════ */}
+        <div style={{ ...P.page, ...P.pageBreak }}>
+          <FullHeader />
 
-        {auditData.overallSummary && (
-          <div style={s.summaryBox}>
-            <div style={s.summaryLabel}>AI shrnutí</div>
-            <div style={{ fontSize: '12.5px', color: '#6B7280', lineHeight: '1.6' }}>{auditData.overallSummary}</div>
-          </div>
-        )}
-
-        <div style={s.section}>
-          <div style={s.sectionTitle}>Skóre po oblastech</div>
-          {Object.entries(auditData.categoryScores || {}).map(([label, val]) => {
-            const c = scoreColor(val)
-            return (
-              <div key={label} style={s.catRow}>
-                <div style={s.catLabel}>{label}</div>
-                <div style={s.catBarBg}><div style={{ height: '100%', width: `${val}%`, background: c, borderRadius: '4px' }} /></div>
-                <div style={{ ...s.catScore, color: c }}>{val}</div>
+          {/* Score box */}
+          <div style={P.scoreBox}>
+            <div style={P.scoreCircle}><span style={P.scoreNum}>{score}</span></div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '17px', fontWeight: '700', color: sc, marginBottom: '5px' }}>{sl}</div>
+              <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Skóre: <strong style={{ color: sc }}>{score}/100</strong></span>
+                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Stránek: <strong style={{ color: '#111827' }}>{auditData.pagesAnalyzed}</strong></span>
+                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Broken linků: <strong style={{ color: '#EF4444' }}>{auditData.brokenLinksCount}</strong></span>
+                {dupsCount > 0 && <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Duplicit: <strong style={{ color: '#F59E0B' }}>{dupsCount}</strong></span>}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          </div>
 
-        <div style={s.divider} />
-
-        <div style={s.twoCol}>
-          {auditData.topIssues?.length > 0 && (
-            <div>
-              <div style={s.sectionTitle}>Hlavní problémy</div>
-              {auditData.topIssues.map((issue, i) => (
-                <div key={i} style={s.issueRow}><span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span><span>{issue}</span></div>
-              ))}
+          {/* AI summary */}
+          {auditData.overallSummary && (
+            <div style={P.summaryBox}>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#1B6840', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '4px' }}>🤖 AI Shrnutí</div>
+              <div style={{ fontSize: '11.5px', color: '#374151', lineHeight: '1.6' }}>{auditData.overallSummary}</div>
             </div>
           )}
-          {auditData.topStrengths?.length > 0 && (
-            <div>
-              <div style={s.sectionTitle}>Silné stránky</div>
-              {auditData.topStrengths.map((str, i) => (
-                <div key={i} style={s.passRow}><span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span><span>{str}</span></div>
-              ))}
-            </div>
-          )}
+
+          {/* Category scores */}
+          <div style={P.section}>
+            <div style={P.sectionTitle}>Skóre po oblastech</div>
+            {Object.entries(auditData.categoryScores || {}).map(([label, val]) => {
+              const c = scoreColor(val)
+              return (
+                <div key={label} style={P.catRow}>
+                  <div style={P.catLabel}>{label}</div>
+                  <div style={P.catBarBg}><div style={{ height: '100%', width: `${val}%`, background: c, borderRadius: '3px' }} /></div>
+                  <div style={{ ...P.catScore, color: c }}>{val}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div style={P.divider} />
+
+          {/* Issues + Strengths */}
+          <div style={{ ...P.twoCol, marginBottom: '16px' }}>
+            {auditData.topIssues?.length > 0 && (
+              <div>
+                <div style={P.sectionTitle}>Hlavní problémy</div>
+                {auditData.topIssues.slice(0, 4).map((issue, i) => (
+                  <div key={i} style={P.issueRow}><span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span><span>{issue}</span></div>
+                ))}
+              </div>
+            )}
+            {auditData.topStrengths?.length > 0 && (
+              <div>
+                <div style={P.sectionTitle}>Silné stránky</div>
+                {auditData.topStrengths.slice(0, 4).map((str, i) => (
+                  <div key={i} style={P.passRow}><span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span><span>{str}</span></div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Footer page={1} total={TOTAL} />
         </div>
 
-        {auditData.topRecommendations?.length > 0 && (
-          <>
-            <div style={s.divider} />
-            <div style={s.section}>
-              <div style={s.sectionTitle}>Top doporučení</div>
-              {auditData.topRecommendations.map((rec, i) => (
-                <div key={i} style={s.recCard}>
-                  <div style={s.recHeader}>
-                    <span style={s.recNum}>{String(i + 1).padStart(2, '0')}</span>
-                    <span style={getPriorityBadge(rec.priority)}>{(rec.priority || 'nízká').toUpperCase()} PRIORITA</span>
-                    <span style={{ fontSize: '12.5px', color: '#111827', fontWeight: '500', flex: 1 }}>{rec.action}</span>
-                  </div>
-                  {(rec.impactDescription || (typeof rec.impact === 'string' ? rec.impact : '')) && (
-                    <div style={{ fontSize: '11.5px', color: '#9CA3AF', marginTop: '4px' }}>
-                      Dopad: {rec.impactDescription || rec.impact}
+        {/* ══════════════ PAGE 2 – Doporučení & Přehled stránek ══════════════ */}
+        <div style={{ ...P.page, ...P.pageBreak }}>
+          <MiniHeader page={2} total={TOTAL} />
+
+          {/* Recommendations */}
+          {auditData.topRecommendations?.length > 0 && (
+            <div style={P.section}>
+              <div style={P.sectionTitle}>Top doporučení</div>
+              {auditData.topRecommendations.map((rec, i) => {
+                const impactText = rec.impactDescription || (typeof rec.impact === 'string' ? rec.impact : '')
+                const eb = rec.ease != null ? easeBadge(rec.ease) : null
+                const ib = typeof rec.impact === 'number' ? impBadge(rec.impact) : null
+                return (
+                  <div key={i} style={P.recCard}>
+                    <div style={P.recHeader}>
+                      <span style={P.recNum}>{String(i + 1).padStart(2, '0')}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '5px', alignItems: 'center' }}>
+                          <span style={priBadge(rec.priority)}>{(rec.priority || 'nízká').toUpperCase()}</span>
+                          {eb && <span style={eb.style}>{eb.label}</span>}
+                          {ib && <span style={ib.style}>{ib.label}</span>}
+                        </div>
+                        <div style={{ fontSize: '12.5px', color: '#111827', fontWeight: '600', marginBottom: '3px' }}>{rec.action}</div>
+                        {impactText && <div style={{ fontSize: '11px', color: '#6B7280' }}>Dopad: {impactText}</div>}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
-          </>
-        )}
+          )}
 
-        {auditData.brokenLinks?.length > 0 && (
-          <>
-            <div style={s.divider} />
-            <div style={s.section}>
-              <div style={s.sectionTitle}>Broken linky ({auditData.brokenLinks.length})</div>
-              {auditData.brokenLinks.slice(0, 5).map((link, i) => (
-                <div key={i} style={{ ...s.issueRow, fontFamily: 'monospace', fontSize: '11px' }}>
-                  <span style={{ color: '#EF4444', flexShrink: 0 }}>404</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</span>
+          <div style={P.divider} />
+
+          {/* Site-wide issues + duplicates + keyword cannibalization */}
+          <div style={P.twoCol}>
+            <div>
+              {auditData.siteWideIssues?.length > 0 && (
+                <div style={P.section}>
+                  <div style={P.sectionTitle}>Problémy celého webu</div>
+                  {auditData.siteWideIssues.map((issue, i) => (
+                    <div key={i} style={P.issueRow}><span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span><span>{issue}</span></div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {auditData.keywordCannibalization?.length > 0 && (
+                <div style={P.section}>
+                  <div style={P.sectionTitle}>Keyword Cannibalization</div>
+                  {auditData.keywordCannibalization.slice(0, 3).map((kw, i) => (
+                    <div key={i} style={P.issueRow}>
+                      <span style={{ color: '#F59E0B', flexShrink: 0 }}>⚠</span>
+                      <span><strong>"{kw.keyword}"</strong> – {kw.urls?.length} stránek soutěží o stejné KW</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </>
-        )}
 
-        <div style={s.footer}>
-          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>Vygenerováno nástrojem GetFound Content Audit Tool</div>
-          <div style={{ fontSize: '11px', color: '#1B6840', fontWeight: '600' }}>getfound.cz</div>
+            <div>
+              {(auditData.duplicateTitles?.length > 0 || auditData.duplicateDescriptions?.length > 0) && (
+                <div style={P.section}>
+                  <div style={P.sectionTitle}>Duplicitní obsah</div>
+                  {auditData.duplicateTitles?.slice(0, 3).map((d, i) => (
+                    <div key={`t${i}`} style={P.issueRow}>
+                      <span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span>
+                      <span>Title: <span style={{ fontFamily: 'monospace', fontSize: '10.5px' }}>{d.title?.slice(0, 38)}{d.title?.length > 38 ? '…' : ''}</span></span>
+                    </div>
+                  ))}
+                  {auditData.duplicateDescriptions?.slice(0, 3).map((d, i) => (
+                    <div key={`d${i}`} style={P.issueRow}>
+                      <span style={{ color: '#F59E0B', flexShrink: 0 }}>⚠</span>
+                      <span>Meta: <span style={{ fontFamily: 'monospace', fontSize: '10.5px' }}>{d.desc?.slice(0, 38)}{d.desc?.length > 38 ? '…' : ''}</span></span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={P.divider} />
+
+          {/* Pages score table */}
+          <div style={P.section}>
+            <div style={P.sectionTitle}>Hodnocení stránek</div>
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: '7px', overflow: 'hidden' }}>
+              <table style={P.table}>
+                <thead>
+                  <tr>
+                    <th style={P.th}>URL stránky</th>
+                    <th style={{ ...P.th, width: '76px' }}>Typ</th>
+                    <th style={{ ...P.th, width: '44px', textAlign: 'right' }}>Skóre</th>
+                    <th style={{ ...P.th, width: '52px', textAlign: 'right' }}>Slov</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(auditData.pages || []).slice(0, 9).map((page, i) => {
+                    const c = scoreColor(page.score)
+                    const typeL = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', other: 'Ostatní' }
+                    const path = (() => { try { return new URL(page.url).pathname || '/' } catch { return page.url } })()
+                    const isLast = i >= Math.min((auditData.pages?.length || 0) - 1, 8)
+                    return (
+                      <tr key={i} style={{ borderBottom: isLast ? 'none' : '1px solid #F3F4F6' }}>
+                        <td style={{ ...P.td, fontFamily: 'monospace', fontSize: '10.5px', color: '#374151' }}>
+                          {path.length > 48 ? path.slice(0, 46) + '…' : path}
+                        </td>
+                        <td style={{ ...P.td, color: '#6B7280', fontSize: '11px' }}>{typeL[page.type] || page.type}</td>
+                        <td style={{ ...P.td, textAlign: 'right', fontWeight: '700', color: c, fontFamily: 'monospace' }}>{page.score}</td>
+                        <td style={{ ...P.td, textAlign: 'right', color: '#9CA3AF', fontSize: '11px' }}>{page.wordCount}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <Footer page={2} total={TOTAL} />
         </div>
+
+        {/* ══════════════ PAGE 3 – AI Analýza & Broken links ══════════════ */}
+        <div style={P.page}>
+          <MiniHeader page={3} total={TOTAL} />
+
+          {/* AI per-page analysis */}
+          {pagesWithAI.length > 0 && (
+            <div style={P.section}>
+              <div style={P.sectionTitle}>AI analýza klíčových stránek</div>
+              {pagesWithAI.map((page, i) => {
+                const ai = page.aiAnalysis
+                const path = (() => { try { return new URL(page.url).pathname || '/' } catch { return page.url } })()
+                const c = scoreColor(page.score)
+                const quickWin = ai.contentQuality?.quickWin || ai.firstImpression?.quickWin || ai.benefitGap?.quickWin || ''
+                const topIssue = ai.firstImpression?.issues?.[0] || ai.benefitGap?.issues?.[0] || ''
+                return (
+                  <div key={i} style={P.pageCard}>
+                    {/* Page url + score */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '8px' }}>
+                      <div style={{ background: c, color: '#fff', fontFamily: 'monospace', fontSize: '10.5px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', flexShrink: 0 }}>{page.score}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</div>
+                      <div style={{ fontSize: '9.5px', color: '#9CA3AF', flexShrink: 0 }}>{page.wordCount} slov</div>
+                    </div>
+                    {/* AI sub-scores */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px', marginBottom: '8px' }}>
+                      {[
+                        { label: 'První dojem', val: ai.firstImpression?.score },
+                        { label: 'Benefit gap', val: ai.benefitGap?.score },
+                        { label: 'Tón textu',   val: ai.emotionalTone?.score },
+                        { label: 'Kvalita',      val: ai.contentQuality?.score },
+                      ].map(({ label, val }) => {
+                        if (val == null) return null
+                        const c2 = scoreColor(val)
+                        return (
+                          <div key={label} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '5px', padding: '5px 6px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '8.5px', color: '#9CA3AF', marginBottom: '2px' }}>{label}</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '700', color: c2, fontFamily: 'monospace' }}>{val}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {/* Top issue */}
+                    {topIssue && (
+                      <div style={{ fontSize: '11px', color: '#374151', marginBottom: quickWin ? '6px' : '0', paddingLeft: '4px' }}>
+                        <span style={{ color: '#EF4444' }}>⚠ </span>{topIssue}
+                      </div>
+                    )}
+                    {/* Quick win */}
+                    {quickWin && (
+                      <div style={{ background: '#ECFDF5', border: '1px solid rgba(27,104,64,0.2)', borderRadius: '4px', padding: '5px 8px' }}>
+                        <span style={{ fontSize: '8.5px', fontWeight: '700', color: '#1B6840', textTransform: 'uppercase', letterSpacing: '0.04em' }}>⚡ Quick Win: </span>
+                        <span style={{ fontSize: '11px', color: '#374151' }}>{quickWin}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Broken links */}
+          {auditData.brokenLinks?.length > 0 && (
+            <div style={P.section}>
+              <div style={P.divider} />
+              <div style={P.sectionTitle}>Broken linky – 404 chyby ({auditData.brokenLinks.length})</div>
+              {auditData.brokenLinks.slice(0, 10).map((link, i) => {
+                const path = (() => { try { return new URL(link).pathname } catch { return link } })()
+                return (
+                  <div key={i} style={P.linkRow}>
+                    <span style={{ color: '#EF4444', fontWeight: '700', flexShrink: 0 }}>404</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* CTA */}
+          <div style={{ background: '#1B6840', borderRadius: '10px', padding: '18px 24px', marginTop: '20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>Chcete to napravit?</div>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '7px' }}>Pomůžeme vám s obsahem webu</div>
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', marginBottom: '12px' }}>GetFound se specializuje na SEO, tvorbu obsahu a výkonnostní marketing pro e-shopy.</div>
+            <div style={{ display: 'inline-block', fontSize: '12px', fontWeight: '700', color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '6px 20px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.3)' }}>
+              getfound.cz/kontakt
+            </div>
+          </div>
+
+          <Footer page={3} total={TOTAL} />
+        </div>
+
       </div>
     </div>
   )
@@ -407,11 +623,9 @@ export default function Results({ auditData, onRestart, contact }) {
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 mb-8 fade-up">
         <div>
-          {/* Status badge */}
           <div
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-600 mb-3"
-            style={{ background: score >= 70 ? '#DCFCE7' : score >= 50 ? '#FEF3C7' : '#FEE2E2',
-                     color: sc }}
+            style={{ background: score >= 70 ? '#DCFCE7' : score >= 50 ? '#FEF3C7' : '#FEE2E2', color: sc }}
           >
             {sl}
           </div>
@@ -423,7 +637,6 @@ export default function Results({ auditData, onRestart, contact }) {
           </div>
         </div>
 
-        {/* Buttons */}
         <div className="flex items-center gap-2 flex-shrink-0 pt-1">
           <div className="flex flex-col items-end gap-1">
             <button
@@ -455,7 +668,6 @@ export default function Results({ auditData, onRestart, contact }) {
 
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 fade-up fade-up-1">
-        {/* Score */}
         <div className="bg-white border border-border rounded-xl p-4 flex items-center gap-3 shadow-sm">
           <ScoreRing score={score} size={52} strokeWidth={5} />
           <div>
@@ -463,18 +675,15 @@ export default function Results({ auditData, onRestart, contact }) {
             <div className="text-sm font-600" style={{ color: sc }}>{sl}</div>
           </div>
         </div>
-        {/* Pages */}
         <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
           <div className="text-2xl font-display font-700 text-text-primary">{auditData.pagesAnalyzed}</div>
           <div className="text-xs text-muted mt-1">stránek auditováno</div>
         </div>
-        {/* Broken links */}
         <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
           <div className="text-xs font-700 text-red-500 uppercase tracking-wide mb-0.5">Broken linků</div>
           <div className="text-2xl font-display font-700 text-red-500">{auditData.brokenLinksCount}</div>
           <div className="text-xs text-red-400">chyby 404</div>
         </div>
-        {/* Duplicit */}
         <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
           <div className="text-xs font-700 text-yellow-600 uppercase tracking-wide mb-0.5">Duplicit</div>
           <div className="text-2xl font-display font-700 text-yellow-600">{dupsCount}</div>
@@ -515,7 +724,6 @@ export default function Results({ auditData, onRestart, contact }) {
       {/* ── Tab: Přehled ── */}
       {tab === 'overview' && (
         <div className="space-y-8">
-          {/* Category scores */}
           <div>
             <h3 className="font-display text-base font-700 text-text-primary mb-4 flex items-center gap-2">
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
@@ -539,7 +747,6 @@ export default function Results({ auditData, onRestart, contact }) {
             </div>
           </div>
 
-          {/* Issues + Strengths two-column */}
           {(auditData.topIssues?.length > 0 || auditData.topStrengths?.length > 0) && (
             <div className="grid md:grid-cols-2 gap-6">
               {auditData.topIssues?.length > 0 && (
@@ -567,7 +774,6 @@ export default function Results({ auditData, onRestart, contact }) {
             </div>
           )}
 
-          {/* Broken links */}
           {auditData.brokenLinks?.length > 0 && (
             <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
               <h3 className="text-sm font-700 text-text-primary mb-4 flex items-center gap-2">
@@ -603,28 +809,17 @@ export default function Results({ auditData, onRestart, contact }) {
       {/* ── Tab: Doporučení ── */}
       {tab === 'recommendations' && (() => {
         const recs = auditData.topRecommendations || []
-        const hasMatrix = recs.some(r => r.ease != null && r.impact != null)
-
-        // Sort: 🟢 first, then 🟡, then ⚪
         const sortedRecs = [...recs]
           .map((r, origIdx) => ({ ...r, origIdx }))
           .sort((a, b) => getRecCategory(a) - getRecCategory(b))
 
         return (
           <div className="space-y-4">
-            {/* Priority matrix */}
-            {hasMatrix && <PriorityMatrix recommendations={recs} />}
-
-            {/* Sorted recommendations list */}
             {sortedRecs.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-xs font-mono text-muted uppercase tracking-wide">
-                  {hasMatrix ? 'Doporučení dle priority' : 'Top doporučení'}
-                </h3>
                 {sortedRecs.map((rec) => {
                   const cat = getRecCategory(rec)
                   const catInfo = CATEGORY_INFO[cat]
-                  // Support both old (impact as string) and new (impactDescription) schema
                   const impactText = rec.impactDescription || (typeof rec.impact === 'string' ? rec.impact : '')
                   const p = rec.priority?.toLowerCase() || 'nízká'
                   const prioStyles = PRIORITY_COLORS[p] || PRIORITY_COLORS['nízká']
@@ -632,12 +827,10 @@ export default function Results({ auditData, onRestart, contact }) {
                   return (
                     <div key={rec.origIdx} className={`rounded-xl border p-5 ${catInfo.bg} ${catInfo.border}`}>
                       <div className="flex items-start gap-3">
-                        {/* Number badge */}
                         <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-700 text-white mt-0.5" style={{ background: '#1B6840' }}>
                           {rec.origIdx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          {/* Category + priority row */}
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <span className={`text-xs font-600 ${catInfo.color}`}>
                               {catInfo.emoji} {catInfo.label}
@@ -648,27 +841,21 @@ export default function Results({ auditData, onRestart, contact }) {
                               </span>
                             )}
                           </div>
-
-                          {/* Action */}
                           <p className="text-text-primary text-sm font-600 mb-2">{rec.action}</p>
-
-                          {/* Impact description */}
                           {impactText && (
                             <p className="text-text-secondary text-xs mb-3">
                               <span className="text-muted">Dopad: </span>{impactText}
                             </p>
                           )}
-
-                          {/* Ease + impact indicators */}
-                          {rec.ease != null && rec.impact != null && (
+                          {rec.ease != null && typeof rec.impact === 'number' && (
                             <div className="flex items-center gap-4 text-xs text-muted">
                               <span className="flex items-center gap-1.5">
                                 <DotIndicator value={4 - rec.ease} colorFilled="#1B6840" />
-                                Snadnost: {rec.ease === 1 ? 'Snadné' : rec.ease === 2 ? 'Střední' : 'Složité'}
+                                {rec.ease === 1 ? 'Snadné' : rec.ease === 2 ? 'Střední náročnost' : 'Složité'}
                               </span>
                               <span className="flex items-center gap-1.5">
                                 <DotIndicator value={rec.impact} colorFilled="#F59E0B" />
-                                Dopad: {rec.impact === 3 ? 'Velký' : rec.impact === 2 ? 'Střední' : 'Malý'}
+                                {rec.impact === 3 ? 'Velký dopad' : rec.impact === 2 ? 'Střední dopad' : 'Malý dopad'}
                               </span>
                             </div>
                           )}
@@ -680,7 +867,6 @@ export default function Results({ auditData, onRestart, contact }) {
               </div>
             )}
 
-            {/* Site-wide issues */}
             {auditData.siteWideIssues?.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-xs font-mono text-muted uppercase tracking-wide mb-4">Problémy celého webu</h3>
@@ -701,7 +887,7 @@ export default function Results({ auditData, onRestart, contact }) {
             Proměníme tyto chyby v příležitost pro váš růst.
           </p>
           <a
-            href="https://getfound.cz"
+            href="https://getfound.cz/kontakt/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 border-2 border-white/40 text-white font-display font-700 rounded-xl px-7 py-3 hover:bg-white hover:text-accent transition-all duration-150"

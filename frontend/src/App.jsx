@@ -130,7 +130,7 @@ export default function App() {
               </div>
             </div>
             <a
-              href="https://getfound.cz"
+              href="https://getfound.cz/kontakt/"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-accent text-white font-display font-700 text-sm rounded-lg px-5 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
