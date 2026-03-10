@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ScoreRing from './ScoreRing'
+
+const HUBSPOT_PORTAL_ID = '146612458'
+const HUBSPOT_FORM_ID   = '608af3d8-7490-438e-9607-504c6702b702'
 
 function CategoryBar({ label, score }) {
   const color = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
@@ -18,32 +21,88 @@ function CategoryBar({ label, score }) {
 }
 
 export default function LeadGate({ auditData, onSubmit }) {
-  const [form, setForm] = useState({ firstName: '', email: '', phone: '' })
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState({})
+  const [formReady, setFormReady] = useState(false)
+  // Captured from form fields just before HubSpot submits
+  const capturedRef = useRef({ firstName: '', email: '', phone: '' })
 
-  const score = auditData.overallScore
+  const score      = auditData.overallScore
   const scoreColor = score >= 71 ? '#22c55e' : score >= 41 ? '#F5D127' : '#ef4444'
   const scoreLabel = score >= 71 ? 'Dobrý základ' : score >= 41 ? 'Potřebuje práci' : 'Kritický stav'
 
-  function validate() {
-    const e = {}
-    if (!form.firstName.trim()) e.firstName = 'Zadejte jméno'
-    if (!form.email.trim()) e.email = 'Zadejte email'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Neplatný formát emailu'
-    return e
-  }
+  // ── Load & initialise HubSpot form ────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    const errs = validate()
-    if (Object.keys(errs).length) { setErrors(errs); return; }
-    setLoading(true)
-    await onSubmit(form)
-  }
+    function initForm() {
+      if (!mounted || !window.hbspt) return
 
+      window.hbspt.forms.create({
+        region:   'eu1',
+        portalId: HUBSPOT_PORTAL_ID,
+        formId:   HUBSPOT_FORM_ID,
+        target:   '#hs-form-target',
+
+        // Disable HubSpot's built-in CSS so we apply our own (see index.css)
+        cssRequired: '',
+
+        onFormReady($form) {
+          if (!mounted) return
+          setFormReady(true)
+
+          // ── Pre-fill hidden fields with audit context ──────────────────
+          // content_audit_pdf_url starts empty; it is updated later via
+          // PATCH from /api/pdf once the user generates the PDF report.
+          const hiddenFields = {
+            content_audit_pdf_url: '',
+            content_audit_score:   String(auditData.overallScore ?? ''),
+            content_audit_url:     auditData.url ?? '',
+            content_audit_date:    new Date().toISOString().split('T')[0],
+          }
+          Object.entries(hiddenFields).forEach(([name, value]) => {
+            $form
+              .find(`input[name="${name}"]`)
+              .val(value)
+              .trigger('change')
+          })
+        },
+
+        onFormSubmit($form) {
+          // Capture visible field values before HubSpot posts to its API
+          capturedRef.current = {
+            firstName: $form.find('input[name="firstname"]').val()  || '',
+            email:     $form.find('input[name="email"]').val()       || '',
+            phone:     $form.find('input[name="phone"]').val()       || '',
+          }
+        },
+
+        onFormSubmitted() {
+          if (!mounted) return
+          // Advance the app to the results step
+          onSubmit(capturedRef.current)
+        },
+      })
+    }
+
+    if (window.hbspt) {
+      initForm()
+    } else {
+      const script = document.createElement('script')
+      script.src     = 'https://js.hsforms.net/forms/embed/v2.js'
+      script.charset = 'utf-8'
+      script.async   = true
+      script.onload  = initForm
+      document.head.appendChild(script)
+    }
+
+    return () => { mounted = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
+
+      {/* ── Header ── */}
       <div className="text-center mb-10 fade-up">
         <div className="inline-flex items-center gap-2 bg-white border border-border rounded-full px-4 py-1.5 mb-6 shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: scoreColor }} />
@@ -58,9 +117,11 @@ export default function LeadGate({ auditData, onSubmit }) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-8 items-start">
-        {/* Score preview */}
+
+        {/* ── Score preview ── */}
         <div className="fade-up fade-up-1">
           <div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
+
             {/* Overall score */}
             <div className="flex items-center gap-6 mb-6">
               <ScoreRing score={score} size={90} strokeWidth={7} />
@@ -77,12 +138,12 @@ export default function LeadGate({ auditData, onSubmit }) {
 
             {/* Category scores */}
             <div className="space-y-3 mb-6">
-              {Object.entries(auditData.categoryScores || {}).map(([label, score]) => (
-                <CategoryBar key={label} label={label} score={score} />
+              {Object.entries(auditData.categoryScores || {}).map(([label, val]) => (
+                <CategoryBar key={label} label={label} score={val} />
               ))}
             </div>
 
-            {/* Teaser issues (blurred) */}
+            {/* Blurred issue teaser */}
             <div className="border-t border-border pt-4">
               <div className="text-xs font-mono text-muted mb-3 uppercase tracking-wide">Nalezené problémy</div>
               <div className="blur-gate space-y-2">
@@ -100,10 +161,10 @@ export default function LeadGate({ auditData, onSubmit }) {
           </div>
         </div>
 
-        {/* Lead form */}
+        {/* ── HubSpot embedded form ── */}
         <div className="fade-up fade-up-2">
           <div className="bg-white border border-accent/30 rounded-2xl p-6 shadow-sm">
-            <div className="mb-6">
+            <div className="mb-5">
               <h3 className="font-display text-xl font-700 text-text-primary mb-2">
                 Zobrazte kompletní výsledky
               </h3>
@@ -112,72 +173,21 @@ export default function LeadGate({ auditData, onSubmit }) {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-muted mb-1.5 uppercase tracking-wide">
-                  Jméno *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Jan Novák"
-                  value={form.firstName}
-                  onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                  className={`w-full bg-surface border rounded-lg px-4 py-3 text-sm text-text-primary outline-none
-                    focus:border-accent transition-colors placeholder-muted
-                    ${errors.firstName ? 'border-red-400' : 'border-border'}`}
-                />
-                {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+            {/* Loading skeleton shown until HubSpot renders the form */}
+            {!formReady && (
+              <div className="space-y-4 animate-pulse">
+                {[1, 2, 3].map(i => (
+                  <div key={i}>
+                    <div className="h-3 w-16 bg-surface rounded mb-2" />
+                    <div className="h-11 bg-surface rounded-lg border border-border" />
+                  </div>
+                ))}
+                <div className="h-12 bg-accent/10 rounded-lg" />
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-mono text-muted mb-1.5 uppercase tracking-wide">
-                  Pracovní email *
-                </label>
-                <input
-                  type="email"
-                  placeholder="jan@firma.cz"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className={`w-full bg-surface border rounded-lg px-4 py-3 text-sm text-text-primary outline-none
-                    focus:border-accent transition-colors placeholder-muted
-                    ${errors.email ? 'border-red-400' : 'border-border'}`}
-                />
-                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-muted mb-1.5 uppercase tracking-wide">
-                  Telefon <span className="normal-case text-muted/60">(nepovinné)</span>
-                </label>
-                <input
-                  type="tel"
-                  placeholder="+420 777 123 456"
-                  value={form.phone}
-                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-sm text-text-primary
-                    outline-none focus:border-accent transition-colors placeholder-muted"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-accent text-white font-display font-700 rounded-lg py-3.5 text-sm
-                  hover:bg-accent-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed
-                  flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.49 8.49l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.49-8.49l2.83-2.83" />
-                    </svg>
-                    Zpracovávám...
-                  </>
-                ) : (
-                  'Zobrazit výsledky →'
-                )}
-              </button>
-            </form>
+            {/* HubSpot form mount point */}
+            <div id="hs-form-target" className={formReady ? '' : 'hidden'} />
 
             <p className="text-center text-xs text-muted mt-4">
               Vaše data jsou v bezpečí. Neposíláme spam.

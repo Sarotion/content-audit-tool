@@ -82,3 +82,180 @@ body::before {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(183,44,106,0.08);
 }
+
+/* ── HubSpot embedded form – brand overrides ──────────────────────────────
+   cssRequired: '' disables HubSpot's own stylesheet so all styles come
+   from here. Selectors are scoped to #hs-form-target to avoid bleed.
+   ────────────────────────────────────────────────────────────────────── */
+
+#hs-form-target .hs-form {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #14143C;
+}
+
+/* Field wrapper */
+#hs-form-target .hs-form-field {
+  margin-bottom: 14px;
+}
+
+/* Labels */
+#hs-form-target .hs-form-field > label {
+  display: block;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: #83839C;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+/* Required star */
+#hs-form-target .hs-form-required {
+  color: #B72C6A;
+  margin-left: 2px;
+}
+
+/* Text / email / tel inputs */
+#hs-form-target input.hs-input,
+#hs-form-target select.hs-input,
+#hs-form-target textarea.hs-input {
+  width: 100% !important;
+  background: #F7F7FE;
+  border: 1px solid #E9E9F9;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-family: 'DM Sans', sans-serif;
+  color: #14143C;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+#hs-form-target input.hs-input::placeholder,
+#hs-form-target textarea.hs-input::placeholder {
+  color: #83839C;
+}
+
+#hs-form-target input.hs-input:focus,
+#hs-form-target select.hs-input:focus,
+#hs-form-target textarea.hs-input:focus {
+  border-color: #B72C6A;
+  box-shadow: 0 0 0 3px rgba(183,44,106,0.10);
+  background: #fff;
+}
+
+/* Validation error state */
+#hs-form-target input.hs-input.invalid.error,
+#hs-form-target input.hs-input.error {
+  border-color: #ef4444;
+  background: #fff;
+}
+
+/* Error messages */
+#hs-form-target .hs-error-msgs {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+#hs-form-target .hs-error-msgs .hs-error-msg {
+  font-size: 11.5px;
+  color: #ef4444;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Submit button */
+#hs-form-target .hs-submit {
+  margin-top: 18px;
+}
+
+#hs-form-target input[type="submit"].hs-button,
+#hs-form-target .hs-button.primary {
+  width: 100%;
+  background: #B72C6A;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 13px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  letter-spacing: 0.01em;
+  -webkit-appearance: none;
+}
+
+#hs-form-target input[type="submit"].hs-button:hover,
+#hs-form-target .hs-button.primary:hover {
+  background: #9B1E56;
+}
+
+#hs-form-target input[type="submit"].hs-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* GDPR / legal consent text */
+#hs-form-target .legal-consent-container,
+#hs-form-target .hs-richtext {
+  font-size: 11px;
+  color: #83839C;
+  line-height: 1.55;
+}
+
+#hs-form-target .legal-consent-container a,
+#hs-form-target .hs-richtext a {
+  color: #B72C6A;
+  text-decoration: underline;
+}
+
+/* Checkbox / radio custom styling */
+#hs-form-target .inputs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#hs-form-target .inputs-list li {
+  margin-bottom: 6px;
+}
+
+#hs-form-target .inputs-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #4A4A6A;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: 'DM Sans', sans-serif;
+}
+
+#hs-form-target .inputs-list input[type="checkbox"],
+#hs-form-target .inputs-list input[type="radio"] {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: #B72C6A;
+}
+
+/* Post-submit success message */
+#hs-form-target .submitted-message {
+  text-align: center;
+  padding: 24px 16px;
+  font-family: 'DM Sans', sans-serif;
+  color: #14143C;
+}
+
+#hs-form-target .submitted-message p {
+  margin: 0;
+  font-size: 14px;
+  color: #4A4A6A;
+}
