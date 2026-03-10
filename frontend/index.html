@@ -12,5 +12,30 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- iframe height sync: posts current document height to parent window -->
+    <script>
+      (function () {
+        // Only run when embedded in an iframe
+        if (window.self === window.top) return;
+
+        var lastHeight = 0;
+
+        function sendHeight() {
+          var h = document.documentElement.scrollHeight;
+          if (h !== lastHeight) {
+            lastHeight = h;
+            window.parent.postMessage({ type: 'gf-audit-resize', height: h }, '*');
+          }
+        }
+
+        // Send on load, on every DOM mutation, and on window resize
+        sendHeight();
+        window.addEventListener('resize', sendHeight);
+
+        var observer = new MutationObserver(sendHeight);
+        observer.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+      })();
+    </script>
   </body>
 </html>
