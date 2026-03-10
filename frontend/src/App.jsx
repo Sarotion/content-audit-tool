@@ -7,6 +7,13 @@ import ScoreRing from './components/ScoreRing'
 
 // Steps: 'input' → 'loading' → 'gate' → 'results'
 
+// Detect iframe embedding once at module load (stable, no React state needed).
+// When embedded we:
+//   1. Remove min-h-screen → eliminates circular height dependency with postMessage
+//   2. Replace position:fixed sticky bar → fixed is relative to iframe viewport,
+//      causing overlap & wrong scrollHeight. We use a normal in-flow bar instead.
+const isEmbedded = window.self !== window.top
+
 export default function App() {
   const [step, setStep] = useState('input')
   const [url, setUrl] = useState('')
@@ -65,8 +72,12 @@ export default function App() {
   const scoreCol = score >= 70 ? '#22c55e' : score >= 50 ? '#F59E0B' : '#ef4444'
   const scoreLbl = score >= 70 ? 'Dobrý základ' : score >= 50 ? 'Potřebuje práci' : 'Kritický stav'
 
+  const showStickyBar = step === 'results' && auditData
+
   return (
-    <div className="relative min-h-screen bg-base overflow-x-hidden">
+    // min-h-screen is intentionally omitted when embedded:
+    // it creates a circular dependency where 100vh grows with each postMessage update.
+    <div className={`relative bg-base overflow-x-hidden ${isEmbedded ? '' : 'min-h-screen'}`}>
 
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-border">
@@ -97,15 +108,15 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main>
+      {/* Main content — extra bottom padding in results so content isn't hidden behind the bar */}
+      <main className={showStickyBar && !isEmbedded ? 'pb-20' : ''}>
         {step === 'input'   && <UrlInput onSubmit={startAudit} error={error} />}
         {step === 'loading' && <AuditProgress url={url} />}
         {step === 'gate'    && auditData && <LeadGate auditData={auditData} onSubmit={submitLead} />}
         {step === 'results' && auditData && <Results auditData={auditData} onRestart={restart} contact={contact} />}
       </main>
 
-      {/* Footer (hidden in results – sticky bar takes over) */}
+      {/* Footer (hidden in results – bar takes over) */}
       {step !== 'results' && (
         <footer className="border-t border-border mt-16 py-6">
           <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -118,10 +129,35 @@ export default function App() {
         </footer>
       )}
 
-      {/* ── Sticky bottom bar (results only) ── */}
-      {step === 'results' && auditData && (
+      {/* ── Bottom bar (results only) ── */}
+
+      {/* Standalone: fixed to bottom of browser viewport */}
+      {showStickyBar && !isEmbedded && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
           <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <ScoreRing score={score} size={40} strokeWidth={4} />
+              <div>
+                <div className="text-xs text-muted">Celkové skóre</div>
+                <div className="text-sm font-600" style={{ color: scoreCol }}>{scoreLbl}</div>
+              </div>
+            </div>
+            <a
+              href="https://getfound.cz/kontakt/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-accent text-white font-display font-700 text-sm rounded-lg px-5 py-2.5 hover:bg-accent-hover transition-colors whitespace-nowrap"
+            >
+              Domluvit konzultaci
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Embedded (iframe): in-flow bar at bottom of content, no position:fixed */}
+      {showStickyBar && isEmbedded && (
+        <div className="bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.06)] mt-8">
+          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <ScoreRing score={score} size={40} strokeWidth={4} />
               <div>

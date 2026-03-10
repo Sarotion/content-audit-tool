@@ -23,15 +23,13 @@
         var rafId = null;
 
         function measure() {
-          // Take the maximum across all height properties to handle
-          // different browser quirks and CSS edge cases.
-          // Add 24px buffer so rounding / sub-pixel gaps never trigger a scrollbar.
-          return Math.max(
-            document.body.scrollHeight,
-            document.body.offsetHeight,
-            document.documentElement.scrollHeight,
-            document.documentElement.offsetHeight
-          ) + 24;
+          // App root div (#root) is the source of truth.
+          // Since we removed min-h-screen when embedded, this is purely
+          // content-driven and has no circular dependency with iframe height.
+          var root = document.getElementById('root');
+          var h = root ? root.getBoundingClientRect().height : document.body.scrollHeight;
+          // +2 px to absorb sub-pixel rounding across browsers
+          return Math.ceil(h) + 2;
         }
 
         function sendHeight() {
@@ -42,12 +40,10 @@
           }
         }
 
-        // Defer via rAF so React has painted before we measure.
-        // Double rAF catches a second layout pass (images, fonts, etc.).
+        // Defer via double rAF so React has fully painted before we measure.
         function scheduleSend() {
           cancelAnimationFrame(rafId);
           rafId = requestAnimationFrame(function () {
-            sendHeight();
             requestAnimationFrame(sendHeight);
           });
         }
@@ -56,13 +52,13 @@
         var observer = new MutationObserver(scheduleSend);
         observer.observe(document.body, { subtree: true, childList: true, attributes: true });
 
-        // Also catch viewport resizes and the initial load
+        // Catch viewport resizes and initial load
         window.addEventListener('resize', scheduleSend);
         window.addEventListener('load', scheduleSend);
         scheduleSend();
 
-        // Periodic fallback: catches async images / lazy-loaded content
-        setInterval(sendHeight, 400);
+        // Periodic fallback for async images / lazy-loaded content
+        setInterval(sendHeight, 500);
       })();
     </script>
   </body>
