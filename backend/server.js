@@ -38,20 +38,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/lead', leadRoutes);
 app.use('/api/pdf', pdfRoutes);
 
-app.get('/health', (req, res) => res.json({ status: 'ok', version: '1.1.0', timestamp: new Date().toISOString() }));
-
-// Temporary connectivity test endpoint – remove after diagnosis
-app.get('/api/connectivity-test', async (req, res) => {
-  const https = require('https');
-  const axios = require('axios');
-  const agent = new https.Agent({ rejectUnauthorized: false });
-  try {
-    const r = await axios.get('https://example.com', { httpsAgent: agent, timeout: 8000 });
-    res.json({ ok: true, status: r.status, contentType: r.headers['content-type'] });
-  } catch (err) {
-    res.json({ ok: false, code: err.code, message: err.message });
-  }
-});
+app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
