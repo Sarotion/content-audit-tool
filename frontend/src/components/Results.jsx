@@ -58,10 +58,40 @@ function IssueItem({ text, type = 'issue' }) {
   )
 }
 
+// ─── Check metadata ──────────────────────────────────────────────────────────
+
+const CHECK_META = {
+  title:           { icon: '📌', label: 'Title tag',   describe: s => s <= 40 ? 'Titulek chybí'            : s <= 70 ? 'Titulek je příliš krátký'    : 'Titulek je v pořádku'       },
+  metaDescription: { icon: '📝', label: 'Meta popis',  describe: s => s <= 40 ? 'Popis chybí'              : s <= 70 ? 'Popis je příliš krátký'       : 'Popis je v pořádku'         },
+  headings:        { icon: '🔤', label: 'Nadpisy',     describe: s => s <= 40 ? 'H1 chybí'                 : s <= 70 ? 'Více H1 nadpisů'              : 'Nadpisy jsou v pořádku'     },
+  thinContent:     { icon: '📄', label: 'Obsah',       describe: s => s <= 40 ? 'Velmi málo textu'         : s <= 70 ? 'Nedostatek obsahu'            : 'Obsah je dostatečný'        },
+  images:          { icon: '🖼️', label: 'Obrázky',    describe: s => s <= 40 ? 'Alt texty chybí'          : s <= 70 ? 'Některé alt texty chybí'      : 'Obrázky jsou v pořádku'     },
+  structuredData:  { icon: '🏷️', label: 'Schema.org', describe: s => s <= 40 ? 'Schema.org chybí'         : s <= 70 ? 'Základní schema nalezeno'     : 'Schema je v pořádku'        },
+  openGraph:       { icon: '🔗', label: 'OpenGraph',   describe: s => s <= 40 ? 'Sdílení nefunguje'        : s <= 70 ? 'Sdílení je neúplné'           : 'Sdílení je v pořádku'       },
+  url:             { icon: '🌐', label: 'URL',         describe: s =>                                          s <= 70 ? 'URL má problémy'             : 'URL je v pořádku'           },
+}
+
+function CheckStatusBadge({ score }) {
+  if (score <= 40) return (
+    <span className="inline-flex items-center text-xs font-600 bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+      Kritické
+    </span>
+  )
+  if (score <= 70) return (
+    <span className="inline-flex items-center text-xs font-600 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+      Potřebuje úpravu
+    </span>
+  )
+  return (
+    <span className="inline-flex items-center text-xs font-600 bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+      V pořádku
+    </span>
+  )
+}
+
 function PageDetail({ page }) {
   const [open, setOpen] = useState(false)
   const typeLabels = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', other: 'Ostatní' }
-  const c = scoreColor(page.score)
 
   return (
     <div className="border border-border rounded-xl overflow-hidden shadow-sm">
@@ -80,24 +110,23 @@ function PageDetail({ page }) {
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-2 border-t border-border bg-surface space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            {page.checks && Object.entries({
-              'Title': page.checks.title,
-              'Meta desc.': page.checks.metaDescription,
-              'Nadpisy': page.checks.headings,
-              'Obsah': page.checks.thinContent,
-              'Obrázky': page.checks.images,
-              'Schema': page.checks.structuredData,
-              'OpenGraph': page.checks.openGraph,
-              'URL': page.checks.url
-            }).map(([label, check]) => check ? (
-              <div key={label} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-border">
-                <span className="text-xs text-muted">{label}</span>
-                <span className="text-xs font-mono font-600" style={{ color: scoreColor(check.score) }}>{check.score}</span>
+        <div className="px-4 pb-4 pt-2 border-t border-border bg-surface space-y-1.5">
+          {page.checks && ['title', 'metaDescription', 'headings', 'thinContent', 'images', 'structuredData', 'openGraph', 'url'].map(key => {
+            const check = page.checks[key]
+            const meta  = CHECK_META[key]
+            if (!check || !meta) return null
+            return (
+              <div key={key} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-border">
+                <span className="text-sm shrink-0">{meta.icon}</span>
+                <span className="text-xs font-600 text-text-primary shrink-0" style={{ width: '82px' }}>{meta.label}</span>
+                <span className="text-border-mid text-xs shrink-0">·</span>
+                <CheckStatusBadge score={check.score} />
+                <span className="text-border-mid text-xs shrink-0">·</span>
+                <span className="text-xs text-text-secondary flex-1 min-w-0 truncate">{meta.describe(check.score)}</span>
+                <span className="text-xs text-muted font-mono shrink-0">{check.score}/100</span>
               </div>
-            ) : null)}
-          </div>
+            )
+          })}
         </div>
       )}
     </div>
