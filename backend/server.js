@@ -15,8 +15,19 @@ app.use(helmet({
   // Allow serving PDF files from /uploads without strict CSP
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
+const ALLOWED_ORIGINS = [
+  'https://getfound.cz',
+  'https://www.getfound.cz',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true
 }));
 
