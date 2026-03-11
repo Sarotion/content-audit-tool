@@ -781,7 +781,6 @@ export default function Results({ auditData, onRestart, contact }) {
 
   const idxCount = auditData.indexability?.indexableCount ?? null
   const idxTotal = auditData.indexability?.totalPages ?? auditData.pagesAnalyzed
-  const searchIdx = auditData.indexability?.searchIndexation || {}
   const siteType  = auditData.siteType || 'website'
 
   const tabs = [
@@ -1014,74 +1013,6 @@ export default function Results({ auditData, onRestart, contact }) {
                   </ul>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Indexability section */}
-          {auditData.indexability && (
-            <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
-              <h3 className="text-sm font-700 text-text-primary mb-4 flex items-center gap-2">
-                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35"/></svg>
-                Indexovatelnost stránek
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className={`rounded-xl p-4 border ${idxCount === idxTotal ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                  <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Technicky indexovatelné</div>
-                  <div className="text-2xl font-display font-700" style={{ color: idxCount === idxTotal ? '#16a34a' : '#D97706' }}>
-                    {idxCount}/{idxTotal}
-                  </div>
-                  <div className="text-xs text-muted mt-1">stránek ze vzorku</div>
-                </div>
-
-                <div className="rounded-xl p-4 border border-border bg-surface">
-                  <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Seznam.cz index</div>
-                  <div className="text-2xl font-display font-700 text-text-primary">
-                    {searchIdx.seznam === 'blocked' ? '—' : searchIdx.seznam != null ? searchIdx.seznam.toLocaleString('cs-CZ') : '—'}
-                  </div>
-                  <div className="text-xs text-muted mt-1">
-                    {searchIdx.seznam === 'blocked' ? 'nelze ověřit (anti-bot)' : searchIdx.seznam != null ? 'stránek v indexu (odhad)' : 'nelze ověřit'}
-                  </div>
-                </div>
-
-                <div className="rounded-xl p-4 border border-border bg-surface">
-                  <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Google index</div>
-                  <div className="text-2xl font-display font-700 text-text-primary">
-                    {searchIdx.google === 'blocked' ? '—' : searchIdx.google != null ? searchIdx.google.toLocaleString('cs-CZ') : '—'}
-                  </div>
-                  <div className="text-xs text-muted mt-1">
-                    {searchIdx.google === 'blocked' ? 'blokováno (anti-bot)' : searchIdx.google != null ? 'stránek v indexu (odhad)' : 'nelze ověřit'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Per-page indexability issues */}
-              {auditData.indexability.pages?.some(p => !p.indexable || p.issues?.length > 0) && (
-                <div className="space-y-2">
-                  <div className="text-xs font-700 text-muted uppercase tracking-wide mb-2">Stránky s problémy indexace</div>
-                  {auditData.indexability.pages
-                    .filter(p => !p.indexable || p.issues?.length > 0)
-                    .map((p, i) => {
-                      const path = (() => { try { return new URL(p.url).pathname } catch { return p.url } })()
-                      return (
-                        <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2.5">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-yellow-600">⚠</span>
-                            <span className="text-xs font-mono text-yellow-800 truncate">{path}</span>
-                          </div>
-                          {p.issues?.map((issue, j) => (
-                            <div key={j} className="text-xs text-yellow-700 ml-5">{issue.detail}</div>
-                          ))}
-                        </div>
-                      )
-                    })}
-                </div>
-              )}
-
-              <div className="mt-3 text-xs text-muted flex items-center gap-1.5">
-                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-4m0-4h.01"/></svg>
-                Počty v Google/Seznam jsou hrubé odhady z operátoru site:. Pro přesná data použijte Google Search Console.
-              </div>
             </div>
           )}
         </div>
