@@ -114,6 +114,32 @@ function detectSiteType(pageData, $) {
   // Input for quantity (typical on product / category pages)
   if ($('input[type="number"][name*="qty"], input[name*="quantity"], input[name*="mnozstvi"]').length > 0) score += 2;
 
+  // ── Navigation link text analysis ─────────────────────────────────────────
+  // Checks link TEXT (not just href) in navigation – works even when cart/prices
+  // are rendered by JavaScript, because navigation is almost always server-rendered.
+  const navLinkTexts = [];
+  $('nav a, header a, [role="navigation"] a, .menu a, #menu a, .main-menu a, .top-menu a, .nav-menu a, .navbar a').each((_, el) => {
+    const text = $(el).text().trim();
+    if (text.length >= 2 && text.length <= 40) navLinkTexts.push(text);
+  });
+  const CZ_PRODUCT_CAT_RE = /hračky|hračka|lego|stavebnice|puzzle|dárek|dárky|elektronika|oblečení|móda|obuv|boty|nábytek|sport|zahrada|kuchyně|domácnost|kosmetika|doplňky|autodoplňky|kola|knihy|hry|vláčky|chovatel|modelářství|outdoor|rybolov|potraviny|drogerie|nářadí|nástroje|svítidla|textil|parfum|hračky|panenky|auta|roboti|stavebnic/i;
+  const catNavCount = navLinkTexts.filter(t => CZ_PRODUCT_CAT_RE.test(t)).length;
+  if (catNavCount >= 3) score += 4;       // Multiple product category names in nav → very strong signal
+  else if (catNavCount >= 2) score += 2;
+  else if (catNavCount >= 1) score += 1;
+  // Large number of nav items usually means a product catalog, not a service website
+  if (navLinkTexts.length >= 10) score += 2;
+  else if (navLinkTexts.length >= 7) score += 1;
+  console.log(`  Nav links: ${navLinkTexts.length} total, ${catNavCount} product-category-sounding`);
+
+  // ── Product listing containers ────────────────────────────────────────────
+  // Product grids / lists with multiple product tiles
+  if ($('[class*="product-grid"], [class*="product-list"], [class*="products-wrap"], [class*="produkty"], ul.products').length > 0) score += 2;
+  if ($('[class*="product-item"], [class*="item-product"], [data-product-id], [data-product]').length >= 3) score += 2;
+
+  // Sale / discount / new badges common on e-shop homepages
+  if ($('[class*="sale-badge"], [class*="badge-sale"], [class*="sleva"], [class*="akce-"], .label-sale, .label-new').length > 0) score += 1;
+
   console.log(`  E-shop detection score: ${score} (threshold ≥3)`);
   return score >= 3 ? 'eshop' : 'website';
 }
@@ -304,6 +330,28 @@ async function crawlWebsite(startUrl) {
 
     typeCounts[pageType] = (typeCounts[pageType] || 0) + 1;
     pages.push(result.data);
+
+    // ── Mid-crawl site type re-evaluation ────────────────────────────────────
+    // Initial detection only sees the homepage. These checks use richer evidence:
+    // 1) After homepage: scan ALL discovered link URLs for e-shop URL patterns
+    // 2) Ongoing: if actual product/category pages are found → definitely an e-shop
+    let reEvaluated = false;
+    if (pages.length === 1 && siteType === 'website') {
+      const eshopPatternLinks = result.links.filter(l =>
+        /\/(produkt|product|zbozi|item|p\/|katalog|kategori|category|collection|vypis|obchod)/i.test(l)
+      ).length;
+      if (eshopPatternLinks >= 4) {
+        siteType = 'eshop'; slots = SLOTS[siteType]; reEvaluated = true;
+        console.log(`  Site type re-evaluated → eshop (${eshopPatternLinks} e-shop URL patterns in homepage links)`);
+      }
+    }
+    if (!reEvaluated && siteType === 'website' && ((typeCounts.product || 0) >= 1 || (typeCounts.category || 0) >= 1)) {
+      siteType = 'eshop'; slots = SLOTS[siteType]; reEvaluated = true;
+      console.log(`  Site type re-evaluated → eshop (found product/category page types after ${pages.length} pages)`);
+    }
+    if (reEvaluated) {
+      queue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+    }
 
     // Re-sort queue based on detected site type (re-prioritize after each page)
     const newLinks = result.links
