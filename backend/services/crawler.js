@@ -165,21 +165,22 @@ const SLOTS = {
 };
 
 /**
- * URL priority score for queue ordering (higher = crawled sooner)
+ * URL priority score for queue ordering (higher = crawled sooner).
+ * E-shop order: products → categories → blog → about/contact → other
  */
 function urlPriorityForType(url, siteType) {
   const u = url.toLowerCase();
   if (siteType === 'eshop') {
     if (/\/(produkt|product|zbozi|item)/.test(u)) return 10;
-    if (/\/(kategori|category|vypis|collection)/.test(u)) return 8;
-    if (/\/(o-nas|o-firme|about|kontakt|contact)/.test(u)) return 4;
-    if (/\/(blog|clanek|article)/.test(u)) return 3;
+    if (/\/(kategori|category|vypis|collection)/.test(u)) return 9;
+    if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 5;
+    if (/\/(o-nas|o-firme|about|kontakt|contact)/.test(u)) return 3;
     return 1;
   } else {
     if (/\/(sluzby|services|nabidka|reseni|cenik|pricing)/.test(u)) return 10;
     if (/\/(o-nas|o-firme|about)/.test(u)) return 7;
     if (/\/(kontakt|contact)/.test(u)) return 6;
-    if (/\/(blog|clanek|article|novinky)/.test(u)) return 4;
+    if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 4;
     return 1;
   }
 }
@@ -188,13 +189,15 @@ function urlPriorityForType(url, siteType) {
 
 function extractInternalLinks($, baseUrl, pageUrl) {
   const origin = new URL(baseUrl).origin;
+  const base = baseUrl.replace(/\/$/, ''); // Normalize for comparison
   const links = new Set();
   $('a[href]').each((_, el) => {
     try {
       const href = $(el).attr('href');
       if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
-      const full = new URL(href, pageUrl).href.split('#')[0].split('?')[0];
-      if (full.startsWith(origin) && full !== baseUrl) links.add(full);
+      // Normalize: strip trailing slash so https://domain.com/ and https://domain.com are identical
+      const full = new URL(href, pageUrl).href.split('#')[0].split('?')[0].replace(/\/$/, '');
+      if (full.startsWith(origin) && full !== base) links.add(full);
     } catch {}
   });
   return [...links];
@@ -300,7 +303,7 @@ async function fetchPage(url) {
 // ─── Main crawl ────────────────────────────────────────────────────────────────
 
 async function crawlWebsite(startUrl) {
-  const base = normalizeUrl(startUrl);
+  const base = normalizeUrl(startUrl).replace(/\/$/, ''); // Always strip trailing slash
   const visited = new Set([base]);
 
   // Two-tier queue:
@@ -332,22 +335,31 @@ async function crawlWebsite(startUrl) {
 
     const remaining = MAX_PAGES - pages.length;
 
-    // Apply type caps only on primary-queue URLs when there's plenty of room left.
-    // Spill-queue URLs bypass caps entirely – they're fill pages.
-    if (!fromSpill && siteType && slots && remaining > 3) {
+    // ── Type cap enforcement ──────────────────────────────────────────────────
+    if (siteType && slots && remaining > 3) {
       const urlType = detectTypeFromUrl(url);
       const limit = slots[urlType] ?? 0;
 
-      if (limit === 0) {
-        // Hard-excluded type (e.g. service pages for e-shops) → defer to spill
-        spillQueue.push(url); continue;
-      }
-      if (typeCounts[urlType] >= limit) {
-        // Over cap – defer only if we still expect to find better pages
-        const unfilledSlots = Object.entries(slots).reduce((sum, [t, cap]) =>
-          sum + Math.max(0, cap - (typeCounts[t] || 0)), 0);
-        if (unfilledSlots > 0) { spillQueue.push(url); continue; }
-        // No preferred slots left → let it through
+      if (!fromSpill) {
+        // PRIMARY queue: enforce all caps strictly
+        if (limit === 0) {
+          // Excluded type (e.g. "other" for e-shops, "service" etc.) → defer to spill as fill
+          spillQueue.push(url); continue;
+        }
+        if (typeCounts[urlType] >= limit) {
+          // Over cap – skip entirely. Do NOT add to spill (would bypass caps there).
+          // Only let through if all preferred slots are already filled.
+          const unfilledSlots = Object.entries(slots).reduce((sum, [t, cap]) =>
+            sum + Math.max(0, cap - (typeCounts[t] || 0)), 0);
+          if (unfilledSlots > 0) continue; // Better pages expected – skip this one
+          // All preferred slots filled → accept as extra fill
+        }
+      } else {
+        // SPILL queue (fill mode): still respect soft caps for typed pages.
+        // Only bypass cap for limit===0 types (those are the intentional fill pages).
+        if (limit > 0 && typeCounts[urlType] >= limit) {
+          continue; // Cap exceeded even in fill mode – skip
+        }
       }
     }
 
