@@ -214,15 +214,8 @@ function extractPageData(url, html, $, xRobotsTag = null) {
   const h2 = $('h2').map((_, el) => $(el).text().trim()).get();
   const h3 = $('h3').map((_, el) => $(el).text().trim()).get();
 
-  $('script, style, nav, footer, header, .cookie, #cookie, [class*="cookie"], [class*="popup"]').remove();
-  const bodyText = $('main, article, .product-description, .category-description, #content, body')
-    .first().text().replace(/\s+/g, ' ').trim().slice(0, 3000);
-
-  const images = $('img').map((_, el) => ({
-    src: $(el).attr('src') || '',
-    alt: $(el).attr('alt') || null
-  })).get().slice(0, 30);
-
+  // ⚠️ Extract structured data and internal links BEFORE removing nav/scripts,
+  // otherwise nav links and LD+JSON would be lost ($.remove() mutates in place).
   const structuredData = [];
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
@@ -235,6 +228,16 @@ function extractPageData(url, html, $, xRobotsTag = null) {
     href: $(el).attr('href') || '',
     text: $(el).text().trim().slice(0, 50)
   })).get().filter(l => l.href && !l.href.startsWith('#') && !l.href.startsWith('mailto:')).slice(0, 50);
+
+  // Strip noise elements so bodyText only contains meaningful content
+  $('script, style, nav, footer, header, .cookie, #cookie, [class*="cookie"], [class*="popup"]').remove();
+  const bodyText = $('main, article, .product-description, .category-description, #content, body')
+    .first().text().replace(/\s+/g, ' ').trim().slice(0, 3000);
+
+  const images = $('img').map((_, el) => ({
+    src: $(el).attr('src') || '',
+    alt: $(el).attr('alt') || null
+  })).get().slice(0, 30);
 
   const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
 
@@ -272,13 +275,21 @@ async function fetchPage(url) {
       httpsAgent
     });
     if (!response.headers['content-type']?.includes('html')) return null;
-    const $ = cheerio.load(response.data);
     const xRobotsTag = response.headers['x-robots-tag'] || null;
+
+    // Use two separate cheerio instances from the same HTML:
+    //   $  – pristine DOM kept for link extraction + detectSiteType (nav/header intact)
+    //   $c – will be mutated by extractPageData (removes nav/header for clean bodyText)
+    // Without this split, extractPageData's $.remove() strips nav BEFORE extractInternalLinks
+    // runs, causing navigation links (categories, products) to be lost from the crawl queue.
+    const $ = cheerio.load(response.data);   // pristine – for links & site-type detection
+    const $c = cheerio.load(response.data);  // will be stripped – for page content only
+
     return {
-      data: extractPageData(url, response.data, $, xRobotsTag),
+      data: extractPageData(url, response.data, $c, xRobotsTag),
       links: extractInternalLinks($, url, url),
       statusCode: response.status,
-      $
+      $  // pristine DOM passed to detectSiteType – can see nav, header, cart icons
     };
   } catch (err) {
     console.error(`Failed to fetch ${url}:`, err.message);
