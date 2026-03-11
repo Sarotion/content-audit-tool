@@ -49,12 +49,22 @@ function detectPageType(url, $) {
     const urlObj = new URL(u);
     if (urlObj.pathname === '/' || urlObj.pathname === '') return 'homepage';
   } catch {}
-  if (/\/(produkt|product|zbozi|item)/.test(u) || $('[itemtype*="Product"]').length > 0) return 'product';
+
+  // ── URL-based detection (fast path) ──────────────────────────────────────
+  if (/\/(produkt|product|zbozi|item)/.test(u)) return 'product';
   if (/\/(kategori|category|vypis|collection)/.test(u)) return 'category';
   if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 'blog';
   if (/\/(o-nas|o-firme|about|o-spolecnosti|kdo-jsme)/.test(u)) return 'about';
   if (/\/(kontakt|contact)/.test(u)) return 'contact';
   if (/\/(sluzby|services|nabidka|reseni|cenik|pricing)/.test(u)) return 'service';
+
+  // ── Content-based fallbacks (for Czech e-shops with non-standard URL slugs) ─
+  // Product page: Schema.org Product type or add-to-cart button
+  if ($('[itemtype*="schema.org/Product"], [itemtype*="Product"]').length > 0) return 'product';
+  if ($('[class*="add-to-cart"], [class*="do-kosiku"], [class*="pridat-do-kosiku"], [data-action*="cart"], form[action*="kosik"], form[action*="cart"]').length > 0) return 'product';
+  // Category/listing page: multiple product tiles visible on one page
+  if ($('[class*="product-item"], [class*="product-card"], [class*="item-product"], [data-product-id], [class*="product-tile"]').length >= 4) return 'category';
+
   return 'other';
 }
 
@@ -281,7 +291,14 @@ async function fetchPage(url) {
 async function crawlWebsite(startUrl) {
   const base = normalizeUrl(startUrl);
   const visited = new Set([base]);
-  const queue = [base];
+
+  // Two-tier queue:
+  //   primaryQueue – preferred pages (respects type caps; crawled first)
+  //   spillQueue   – pages deferred by caps (crawled as fill when primary is empty)
+  // This guarantees we always reach MAX_PAGES even when an e-shop uses
+  // non-standard URL slugs that don't match our product/category patterns.
+  const primaryQueue = [base];
+  const spillQueue = [];
   const pages = [];
 
   let siteType = null;
@@ -290,30 +307,40 @@ async function crawlWebsite(startUrl) {
 
   console.log(`🕷️  Starting crawl: ${base}`);
 
-  while (queue.length > 0 && pages.length < MAX_PAGES) {
-    const url = queue.shift();
+  while (pages.length < MAX_PAGES) {
+    // Pick from primary queue first; fall back to spill queue as fill
+    let url, fromSpill;
+    if (primaryQueue.length > 0) {
+      url = primaryQueue.shift(); fromSpill = false;
+    } else if (spillQueue.length > 0) {
+      url = spillQueue.shift(); fromSpill = true;
+      console.log(`  [fill] switching to spill queue (${spillQueue.length + 1} deferred URLs)`);
+    } else {
+      break; // Nothing left to crawl
+    }
+
     const remaining = MAX_PAGES - pages.length;
 
-    // Apply soft type caps ONLY when we have plenty of capacity left.
-    // When running low (≤3 remaining), accept any URL regardless of type.
-    if (siteType && slots && remaining > 3) {
+    // Apply type caps only on primary-queue URLs when there's plenty of room left.
+    // Spill-queue URLs bypass caps entirely – they're fill pages.
+    if (!fromSpill && siteType && slots && remaining > 3) {
       const urlType = detectTypeFromUrl(url);
       const limit = slots[urlType] ?? 0;
 
       if (limit === 0) {
-        // This type is completely excluded for this site type – skip
-        continue;
+        // Hard-excluded type (e.g. service pages for e-shops) → defer to spill
+        spillQueue.push(url); continue;
       }
       if (typeCounts[urlType] >= limit) {
-        // Over cap – skip only if there are still unfilled preferred slots
+        // Over cap – defer only if we still expect to find better pages
         const unfilledSlots = Object.entries(slots).reduce((sum, [t, cap]) =>
           sum + Math.max(0, cap - (typeCounts[t] || 0)), 0);
-        if (unfilledSlots > 0) continue; // Skip – we expect to find better pages
-        // No preferred slots left but cap reached – let it through as fallback
+        if (unfilledSlots > 0) { spillQueue.push(url); continue; }
+        // No preferred slots left → let it through
       }
     }
 
-    console.log(`  Crawling: ${url}`);
+    console.log(`  Crawling [${fromSpill ? 'fill' : 'prio'}]: ${url}`);
     const result = await fetchPage(url);
 
     if (!result) continue;
@@ -331,10 +358,10 @@ async function crawlWebsite(startUrl) {
     typeCounts[pageType] = (typeCounts[pageType] || 0) + 1;
     pages.push(result.data);
 
-    // ── Mid-crawl site type re-evaluation ────────────────────────────────────
+    // ── Mid-crawl site type re-evaluation ──────────────────────────────────
     // Initial detection only sees the homepage. These checks use richer evidence:
     // 1) After homepage: scan ALL discovered link URLs for e-shop URL patterns
-    // 2) Ongoing: if actual product/category pages are found → definitely an e-shop
+    // 2) Ongoing: if actual product/category pages found → definitely an e-shop
     let reEvaluated = false;
     if (pages.length === 1 && siteType === 'website') {
       const eshopPatternLinks = result.links.filter(l =>
@@ -345,28 +372,29 @@ async function crawlWebsite(startUrl) {
         console.log(`  Site type re-evaluated → eshop (${eshopPatternLinks} e-shop URL patterns in homepage links)`);
       }
     }
-    if (!reEvaluated && siteType === 'website' && ((typeCounts.product || 0) >= 1 || (typeCounts.category || 0) >= 1)) {
+    if (!reEvaluated && siteType === 'website' &&
+        ((typeCounts.product || 0) >= 1 || (typeCounts.category || 0) >= 1)) {
       siteType = 'eshop'; slots = SLOTS[siteType]; reEvaluated = true;
       console.log(`  Site type re-evaluated → eshop (found product/category page types after ${pages.length} pages)`);
     }
     if (reEvaluated) {
-      queue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+      spillQueue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
     }
 
-    // Re-sort queue based on detected site type (re-prioritize after each page)
+    // Add newly discovered links to the primary queue (sorted by priority)
     const newLinks = result.links
       .filter(l => !visited.has(l))
       .sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
 
     for (const link of newLinks.slice(0, 25)) {
       visited.add(link);
-      // Insert into queue respecting priority order
-      queue.push(link);
+      primaryQueue.push(link);
     }
 
-    // Re-sort the whole queue periodically for accurate priority
+    // Periodically re-sort the primary queue for accurate priority
     if (pages.length % 3 === 0 && siteType) {
-      queue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
     }
 
     await new Promise(r => setTimeout(r, 300));
