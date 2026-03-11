@@ -53,7 +53,7 @@ app.get('/health', (req, res) => res.json({
   status: 'ok',
   timestamp: new Date().toISOString(),
   version: process.env.BUILD_VERSION || 'dev',
-  commit: require('child_process').execSync('git rev-parse --short HEAD 2>/dev/null || echo unknown').toString().trim()
+  build: '2026-03-11-C'
 }));
 
 const PORT = process.env.PORT || 3001;
