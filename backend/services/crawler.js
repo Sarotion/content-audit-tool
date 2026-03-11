@@ -160,7 +160,7 @@ function detectSiteType(pageData, $) {
  * Page type slots per site type (max pages of each type to include)
  */
 const SLOTS = {
-  eshop: { homepage: 1, product: 3, category: 3, blog: 1, about: 1, contact: 1, service: 0, other: 0 },
+  eshop: { homepage: 1, product: 3, category: 3, blog: 2, about: 1, contact: 1, service: 0, other: 0 },
   website: { homepage: 1, service: 4, blog: 2, about: 1, contact: 1, product: 0, category: 0, other: 1 }
 };
 
