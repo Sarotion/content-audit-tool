@@ -1,13 +1,13 @@
 import { useState, useRef } from 'react'
 import ScoreRing from './ScoreRing'
 
+// ─── Priority helpers ─────────────────────────────────────────────────────────
+
 const PRIORITY_COLORS = {
   'vysoká': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', badge: 'bg-red-100' },
   'střední': { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-100' },
   'nízká':   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100' }
 }
-
-// ─── Recommendation priority helpers ────────────────────────────────────────
 
 function getRecCategory(rec) {
   const e = rec.ease || 2
@@ -23,7 +23,73 @@ const CATEGORY_INFO = [
   { emoji: '⚪', label: 'Až budeš mít čas',  color: 'text-muted',      bg: 'bg-gray-50',   border: 'border-gray-200' },
 ]
 
-function DotIndicator({ value, max = 3, colorFilled = '#1B6840' }) {
+// ─── Category score tooltips ──────────────────────────────────────────────────
+
+const CATEGORY_TOOLTIPS = {
+  'Title & Meta': 'Title tag a meta description jsou texty viditelné ve výsledcích vyhledávání. Rozhodují o tom, jestli na vás zákazníci kliknou nebo přejdou ke konkurenci.',
+  'Nadpisy & Struktura': 'Nadpisy H1, H2, H3 pomáhají vyhledávačům pochopit téma stránky. Správná hierarchie zlepšuje SEO i orientaci čtenářů.',
+  'Kvalita obsahu': 'Kombinace délky, relevance a unikátnosti textu. Stránky s tenkým nebo generickým obsahem hůře rankují a méně přesvědčují zákazníky.',
+  'Obrázky': 'Alt texty u obrázků pomáhají vyhledávačům "vidět" vaše fotky a zlepšují přístupnost. Správně pojmenované obrázky mohou přinést návštěvníky z Google Images.',
+  'Technické SEO': 'Strukturovaná data (schema.org), OpenGraph tagy pro sdílení na sociálních sítích a čistá URL adresa. Technické základy, které ovlivňují jak vás Google zobrazuje.',
+  'Copy & Přínos': 'AI hodnotí přesvědčivost textu pro zákazníky: první dojem, jasnost benefitů a emocionální tón. Dobré copy přímo zvyšuje konverze.'
+}
+
+// ─── Check area metadata ──────────────────────────────────────────────────────
+
+const CHECK_META = {
+  title: {
+    icon: '📌', label: 'Title tag',
+    describe: s => s <= 40 ? 'Titulek chybí nebo je příliš krátký' : s <= 70 ? 'Titulek potřebuje úpravu' : 'Titulek je v pořádku',
+    explanation: 'Title tag se zobrazuje jako odkaz v Google. Ideální délka je 50–60 znaků. Měl by obsahovat hlavní klíčové slovo a přesvědčit k prokliknutí.',
+    example: { bad: 'Produkty | Eshop', good: 'Kožené peněženky pro muže – doručení do 24h | MůjEshop' }
+  },
+  metaDescription: {
+    icon: '📝', label: 'Meta popis',
+    describe: s => s <= 40 ? 'Meta popis chybí' : s <= 70 ? 'Meta popis je krátký' : 'Meta popis je v pořádku',
+    explanation: 'Meta description je popis zobrazený pod titulkem v Google. Ideálně 120–158 znaků. Obsahuje výzvu k akci a klíčový benefit.',
+    example: { bad: 'Nakupujte u nás online.', good: 'Kožené peněženky ručně šité v ČR. Doručení zdarma nad 990 Kč. Vyberte z 40 modelů →' }
+  },
+  headings: {
+    icon: '🔤', label: 'Nadpisy',
+    describe: s => s <= 40 ? 'H1 chybí nebo je problém' : s <= 70 ? 'Struktura nadpisů potřebuje úpravu' : 'Nadpisy jsou v pořádku',
+    explanation: 'Každá stránka by měla mít právě jeden H1 nadpis s hlavním klíčovým slovem. H2–H3 rozdělují obsah do sekcí. Pomáhá to Google i čtenářům.',
+    example: { bad: 'Vítejte na naší stránce (H1), Produkty (H1), Kontakt (H1)', good: 'Kožené peněženky pro muže (H1), Nejprodávanější modely (H2), Proč si vybrat nás (H2)' }
+  },
+  thinContent: {
+    icon: '📄', label: 'Objem textu',
+    describe: s => s <= 40 ? 'Stránka má velmi málo textu' : s <= 70 ? 'Text by mohl být delší' : 'Objem textu je dostatečný',
+    explanation: 'Stránky s příliš krátkým textem (<300 slov) Google hodnotí hůře. Delší a relevantnější obsah přináší více organických návštěvníků.',
+    example: { bad: '80 slov – jen základní popis produktu', good: '400+ slov – popis, benefity, parametry, FAQ, recenze' }
+  },
+  images: {
+    icon: '🖼️', label: 'Obrázky',
+    describe: s => s <= 40 ? 'Alt texty chybí' : s <= 70 ? 'Některé alt texty chybí' : 'Obrázky jsou v pořádku',
+    explanation: 'Alt text popisuje obrázek pro vyhledávače a pro zrakově postižené. Správný alt text = název produktu + klíčové slovo.',
+    example: { bad: 'alt=""  nebo  alt="IMG_0042"', good: 'alt="Kožená peněženka pánská hnědá – model Classic"' }
+  },
+  structuredData: {
+    icon: '🏷️', label: 'Schema.org',
+    describe: s => s <= 40 ? 'Strukturovaná data chybí' : s <= 70 ? 'Základní schema nalezeno' : 'Schema.org je v pořádku',
+    explanation: 'Strukturovaná data (schema.org) říkají Googlu přesně co na stránce je – produkt, cena, recenze. Výsledkem mohou být hvězdičky nebo cena přímo ve výsledcích vyhledávání.',
+    example: { bad: 'Žádná structured data', good: 'Product schema s cenou, dostupností a hodnocením → Google zobrazí rich snippets' }
+  },
+  openGraph: {
+    icon: '🔗', label: 'OpenGraph',
+    describe: s => s <= 40 ? 'Sdílení na soc. sítích nefunguje správně' : s <= 70 ? 'OpenGraph je neúplný' : 'Sdílení je v pořádku',
+    explanation: 'OpenGraph tagy určují jak stránka vypadá při sdílení na Facebooku, LinkedIn nebo WhatsApp. Správný obrázek a titulek výrazně zvyšuje prokliknutí.',
+    example: { bad: 'Sdílení zobrazí logo webu nebo nic', good: 'Sdílení zobrazí foto produktu + správný titulek + popis' }
+  },
+  url: {
+    icon: '🌐', label: 'URL',
+    describe: s => s <= 70 ? 'URL adresa má problémy' : 'URL je v pořádku',
+    explanation: 'Čistá URL adresa (bez parametrů, v češtině nebo angličtině, s pomlčkami) je lépe čitelná pro zákazníky i Google.',
+    example: { bad: '/shop?id=4829&cat=2&ref=123', good: '/kozene-penezenky/pansky-model-classic' }
+  }
+}
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+function DotIndicator({ value, max = 3, colorFilled = '#B72C6A' }) {
   return (
     <span className="inline-flex gap-0.5">
       {Array.from({ length: max }).map((_, i) => (
@@ -58,40 +124,108 @@ function IssueItem({ text, type = 'issue' }) {
   )
 }
 
-// ─── Check metadata ──────────────────────────────────────────────────────────
-
-const CHECK_META = {
-  title:           { icon: '📌', label: 'Title tag',   describe: s => s <= 40 ? 'Titulek chybí'            : s <= 70 ? 'Titulek je příliš krátký'    : 'Titulek je v pořádku'       },
-  metaDescription: { icon: '📝', label: 'Meta popis',  describe: s => s <= 40 ? 'Popis chybí'              : s <= 70 ? 'Popis je příliš krátký'       : 'Popis je v pořádku'         },
-  headings:        { icon: '🔤', label: 'Nadpisy',     describe: s => s <= 40 ? 'H1 chybí'                 : s <= 70 ? 'Více H1 nadpisů'              : 'Nadpisy jsou v pořádku'     },
-  thinContent:     { icon: '📄', label: 'Obsah',       describe: s => s <= 40 ? 'Velmi málo textu'         : s <= 70 ? 'Nedostatek obsahu'            : 'Obsah je dostatečný'        },
-  images:          { icon: '🖼️', label: 'Obrázky',    describe: s => s <= 40 ? 'Alt texty chybí'          : s <= 70 ? 'Některé alt texty chybí'      : 'Obrázky jsou v pořádku'     },
-  structuredData:  { icon: '🏷️', label: 'Schema.org', describe: s => s <= 40 ? 'Schema.org chybí'         : s <= 70 ? 'Základní schema nalezeno'     : 'Schema je v pořádku'        },
-  openGraph:       { icon: '🔗', label: 'OpenGraph',   describe: s => s <= 40 ? 'Sdílení nefunguje'        : s <= 70 ? 'Sdílení je neúplné'           : 'Sdílení je v pořádku'       },
-  url:             { icon: '🌐', label: 'URL',         describe: s =>                                          s <= 70 ? 'URL má problémy'             : 'URL je v pořádku'           },
-}
-
 function CheckStatusBadge({ score }) {
   if (score <= 40) return (
-    <span className="inline-flex items-center text-xs font-600 bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
-      Kritické
-    </span>
+    <span className="inline-flex items-center text-xs font-600 bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">Kritické</span>
   )
   if (score <= 70) return (
-    <span className="inline-flex items-center text-xs font-600 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
-      Potřebuje úpravu
-    </span>
+    <span className="inline-flex items-center text-xs font-600 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">Potřebuje úpravu</span>
   )
   return (
-    <span className="inline-flex items-center text-xs font-600 bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
-      V pořádku
+    <span className="inline-flex items-center text-xs font-600 bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">V pořádku</span>
+  )
+}
+
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+
+function Tooltip({ text, children }) {
+  return (
+    <span className="relative group inline-flex items-center">
+      {children}
+      <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-text-primary text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 leading-relaxed">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-text-primary" />
+      </div>
     </span>
   )
 }
+
+// ─── AI section card (used in pages tab) ─────────────────────────────────────
+
+function AISectionCard({ title, icon, data, accentColor = 'text-accent' }) {
+  if (!data) return null
+  const hasIssues = data.issues?.length > 0
+  const hasPassed = data.passed?.length > 0
+  const hasQuickWin = data.quickWin && data.quickWin.length > 10
+
+  return (
+    <div className="bg-white border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2.5 bg-surface border-b border-border">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{icon}</span>
+          <span className="text-xs font-700 text-text-primary">{title}</span>
+          {data.tone && (
+            <span className="text-xs text-muted bg-white border border-border px-2 py-0.5 rounded-full">{data.tone}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {data.score != null && (
+            <span className="text-xs font-mono font-700" style={{ color: scoreColor(data.score) }}>{data.score}/100</span>
+          )}
+          <CheckStatusBadge score={data.score || 50} />
+        </div>
+      </div>
+
+      <div className="px-3 py-2.5 space-y-2">
+        {data.summary && (
+          <p className="text-xs text-text-secondary leading-relaxed">{data.summary}</p>
+        )}
+
+        {hasIssues && (
+          <div className="space-y-1">
+            {data.issues.map((issue, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5">
+                <span className="shrink-0 mt-0.5">⚠</span>
+                <span>{issue}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasPassed && (
+          <div className="space-y-1">
+            {data.passed.map((p, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-xs text-green-700 bg-green-50 rounded-lg px-2.5 py-1.5">
+                <span className="shrink-0 mt-0.5">✓</span>
+                <span>{p}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasQuickWin && (
+          <div className="flex items-start gap-2 bg-accent-light border border-accent/20 rounded-lg px-3 py-2 mt-2">
+            <span className="text-accent text-xs shrink-0 mt-0.5">⚡</span>
+            <div>
+              <span className="text-xs font-700 text-accent uppercase tracking-wide">Quick win: </span>
+              <span className="text-xs text-text-secondary">{data.quickWin}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Page detail (pages tab) ──────────────────────────────────────────────────
 
 function PageDetail({ page }) {
   const [open, setOpen] = useState(false)
-  const typeLabels = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', other: 'Ostatní' }
+  const [activeSection, setActiveSection] = useState('seo')
+  const typeLabels = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', about: 'O nás', contact: 'Kontakt', service: 'Služba', other: 'Ostatní' }
+
+  const indexOk = page.indexability?.indexable !== false
+  const indexIssues = page.indexability?.issues || []
 
   return (
     <div className="border border-border rounded-xl overflow-hidden shadow-sm">
@@ -102,140 +236,213 @@ function PageDetail({ page }) {
         <ScoreRing score={page.score} size={36} strokeWidth={4} />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-mono text-muted truncate">{page.url}</div>
-          <div className="text-xs text-text-secondary mt-0.5">
-            {typeLabels[page.type] || page.type} · {page.wordCount} slov
+          <div className="text-xs text-text-secondary mt-0.5 flex items-center gap-2">
+            <span>{typeLabels[page.type] || page.type}</span>
+            <span className="text-border">·</span>
+            <span>{page.wordCount} slov</span>
+            {!indexOk && (
+              <><span className="text-border">·</span>
+              <span className="text-red-500 flex items-center gap-1">
+                <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                Problém s indexací
+              </span></>
+            )}
           </div>
         </div>
         <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-2 border-t border-border bg-surface space-y-1.5">
-          {page.checks && ['title', 'metaDescription', 'headings', 'thinContent', 'images', 'structuredData', 'openGraph', 'url'].map(key => {
-            const check = page.checks[key]
-            const meta  = CHECK_META[key]
-            if (!check || !meta) return null
-            return (
-              <div key={key} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-border">
-                <span className="text-sm shrink-0">{meta.icon}</span>
-                <span className="text-xs font-600 text-text-primary shrink-0" style={{ width: '82px' }}>{meta.label}</span>
-                <span className="text-border-mid text-xs shrink-0">·</span>
-                <CheckStatusBadge score={check.score} />
-                <span className="text-border-mid text-xs shrink-0">·</span>
-                <span className="text-xs text-text-secondary flex-1 min-w-0 truncate">{meta.describe(check.score)}</span>
-                <span className="text-xs text-muted font-mono shrink-0">{check.score}/100</span>
+        <div className="border-t border-border">
+          {/* Sub-tabs */}
+          <div className="flex border-b border-border bg-surface">
+            {[
+              { id: 'seo', label: '⚙ SEO & Technické' },
+              { id: 'content', label: '✍ Obsah & Copy' },
+              ...(indexIssues.length > 0 ? [{ id: 'index', label: '🔍 Indexace' }] : [])
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSection(tab.id)}
+                className={`px-4 py-2 text-xs font-600 border-b-2 -mb-px transition-colors ${
+                  activeSection === tab.id
+                    ? 'border-accent text-accent bg-white'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="px-4 pb-4 pt-3 bg-surface space-y-2.5">
+
+            {/* SEO & Technical checks */}
+            {activeSection === 'seo' && (
+              <div className="space-y-2">
+                {['title', 'metaDescription', 'headings', 'thinContent', 'images', 'structuredData', 'openGraph', 'url'].map(key => {
+                  const check = page.checks?.[key]
+                  const meta = CHECK_META[key]
+                  if (!check || !meta) return null
+
+                  return (
+                    <div key={key} className="bg-white rounded-xl border border-border overflow-hidden">
+                      {/* Header row */}
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <span className="text-sm shrink-0">{meta.icon}</span>
+                        <span className="text-xs font-700 text-text-primary" style={{ minWidth: '90px' }}>{meta.label}</span>
+                        <CheckStatusBadge score={check.score} />
+                        <span className="text-xs text-text-secondary flex-1 min-w-0 truncate">{meta.describe(check.score)}</span>
+                        <span className="text-xs text-muted font-mono shrink-0">{check.score}/100</span>
+                      </div>
+
+                      {/* Issues from rule check */}
+                      {check.issues?.length > 0 && (
+                        <div className="px-3 pb-2 space-y-1">
+                          {check.issues.map((issue, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-xs text-orange-700 bg-orange-50 rounded-lg px-2.5 py-1.5">
+                              <span className="shrink-0">⚠</span><span>{issue}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Explanation + example */}
+                      <div className="px-3 pb-3 pt-1 border-t border-border/60 bg-surface/50">
+                        <p className="text-xs text-text-secondary leading-relaxed mb-2">{meta.explanation}</p>
+                        {meta.example && (
+                          <div className="space-y-1">
+                            <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded-md px-2 py-1">
+                              <span className="shrink-0 font-700">✗</span><span>{meta.example.bad}</span>
+                            </div>
+                            <div className="flex items-start gap-1.5 text-xs text-green-700 bg-green-50 rounded-md px-2 py-1">
+                              <span className="shrink-0 font-700">✓</span><span>{meta.example.good}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+            )}
+
+            {/* Content & Copy (AI analysis) */}
+            {activeSection === 'content' && (
+              <div className="space-y-2.5">
+                {page.aiAnalysis ? (
+                  <>
+                    <AISectionCard
+                      title="První dojem"
+                      icon="👁"
+                      data={page.aiAnalysis.firstImpression}
+                    />
+                    <AISectionCard
+                      title="Benefit & Přesvědčivost"
+                      icon="💡"
+                      data={page.aiAnalysis.benefitGap}
+                    />
+                    <AISectionCard
+                      title="Tón textu"
+                      icon="🎯"
+                      data={page.aiAnalysis.emotionalTone}
+                    />
+                    <AISectionCard
+                      title="Kvalita obsahu"
+                      icon="📊"
+                      data={page.aiAnalysis.contentQuality}
+                    />
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted text-sm">
+                    AI analýza pro tuto stránku není k dispozici
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Indexability issues */}
+            {activeSection === 'index' && (
+              <div className="space-y-2.5">
+                <div className={`rounded-xl border p-4 ${indexOk ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={indexOk ? 'text-green-600' : 'text-red-500'}>
+                      {indexOk ? '✓' : '⚠'}
+                    </span>
+                    <span className={`text-sm font-700 ${indexOk ? 'text-green-700' : 'text-red-700'}`}>
+                      {indexOk ? 'Stránka je technicky indexovatelná' : 'Stránka má problémy s indexovatelností'}
+                    </span>
+                  </div>
+                  {indexIssues.map((issue, i) => (
+                    <div key={i} className="text-xs text-red-700 bg-red-100 rounded-lg px-3 py-2 mb-1.5">
+                      <span className="font-700">{issue.type?.replace(/_/g, ' ').toUpperCase()}: </span>
+                      {issue.detail}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted px-1">
+                  Technická indexovatelnost neznamená, že Google stránku skutečně má v indexu — pouze že ji není zakázáno indexovat.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-// ─── 3-page PDF Template ────────────────────────────────────────────────────
+// ─── PDF Template ─────────────────────────────────────────────────────────────
 
 function PdfTemplate({ auditData, pdfRef }) {
   const score = auditData.overallScore
   const sc = scoreColor(score)
   const sl = scoreLabel(score)
   const date = new Date().toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
-  const dupsCount = (auditData.duplicateTitles?.length || 0) + (auditData.duplicateDescriptions?.length || 0)
   const pagesWithAI = (auditData.pages || []).filter(p => p.aiAnalysis).slice(0, 3)
   const urlShort = auditData.url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
+  const idxCount = auditData.indexability?.indexableCount ?? '-'
+  const idxTotal = auditData.indexability?.totalPages ?? '-'
 
-  // ── Shared inline styles ──────────────────────────────────────────────────
   const P = {
-    // Page container: exactly A4 in px, overflow hidden so slicing works cleanly
-    page: {
-      position: 'relative',
-      width: '794px',
-      height: '1123px',
-      overflow: 'hidden',
-      background: '#fff',
-      fontFamily: "'DM Sans', Arial, sans-serif",
-      fontSize: '12.5px',
-      lineHeight: '1.55',
-      color: '#111827',
-      padding: '40px 48px',
-      boxSizing: 'border-box',
-    },
+    page: { position: 'relative', width: '794px', height: '1123px', overflow: 'hidden', background: '#fff', fontFamily: "'Inter', Arial, sans-serif", fontSize: '12.5px', lineHeight: '1.55', color: '#111827', padding: '40px 48px', boxSizing: 'border-box' },
     pageBreak: { pageBreakAfter: 'always' },
-
-    // Full header (page 1)
-    header: {
-      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-      paddingBottom: '16px', marginBottom: '22px', borderBottom: '2.5px solid #1B6840',
-    },
-    // Mini header (pages 2–3)
-    miniHeader: {
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      paddingBottom: '10px', marginBottom: '18px', borderBottom: '1.5px solid #1B6840',
-    },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '16px', marginBottom: '22px', borderBottom: '2.5px solid #B72C6A' },
+    miniHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', marginBottom: '18px', borderBottom: '1.5px solid #B72C6A' },
     logo: { display: 'flex', alignItems: 'center', gap: '9px' },
-    logoBox: { width: '28px', height: '28px', background: '#1B6840', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    logoBoxSm: { width: '22px', height: '22px', background: '#1B6840', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-
-    // Footer: absolutely positioned inside each page div
-    footer: {
-      position: 'absolute',
-      bottom: '30px', left: '48px', right: '48px',
-      borderTop: '1px solid #E5E7EB', paddingTop: '10px',
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    },
+    logoBox: { width: '28px', height: '28px', background: '#B72C6A', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    logoBoxSm: { width: '22px', height: '22px', background: '#B72C6A', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    footer: { position: 'absolute', bottom: '30px', left: '48px', right: '48px', borderTop: '1px solid #E5E7EB', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     footerText: { fontSize: '10px', color: '#9CA3AF' },
-
-    // Content sections
     sectionTitle: { fontSize: '9.5px', fontWeight: '700', color: '#6B7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' },
     section: { marginBottom: '18px' },
     divider: { borderTop: '1px solid #E5E7EB', margin: '16px 0' },
-
-    // Score box
-    scoreBox: { display: 'flex', alignItems: 'center', gap: '18px', background: '#ECFDF5', border: '1px solid rgba(27,104,64,0.2)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px' },
+    scoreBox: { display: 'flex', alignItems: 'center', gap: '18px', background: '#FDF2F8', border: '1px solid rgba(183,44,106,0.2)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px' },
     scoreCircle: { width: '68px', height: '68px', border: `4.5px solid ${sc}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     scoreNum: { fontSize: '22px', fontWeight: '700', color: sc, fontFamily: 'monospace' },
-
-    // AI summary
     summaryBox: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '7px', padding: '10px 13px', marginBottom: '16px' },
-
-    // Category bars
     catRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '7px' },
     catLabel: { width: '145px', fontSize: '11.5px', color: '#374151', flexShrink: 0 },
     catBarBg: { flex: 1, height: '5.5px', background: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' },
     catScore: { width: '26px', textAlign: 'right', fontSize: '11px', fontFamily: 'monospace', fontWeight: '600', flexShrink: 0 },
-
-    // Issue/pass rows
     issueRow: { display: 'flex', alignItems: 'flex-start', gap: '7px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '5px', padding: '7px 9px', marginBottom: '5px', fontSize: '11.5px', color: '#374151' },
     passRow: { display: 'flex', alignItems: 'flex-start', gap: '7px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '5px', padding: '7px 9px', marginBottom: '5px', fontSize: '11.5px', color: '#374151' },
-
-    // Recommendation card
     recCard: { border: '1px solid #E5E7EB', borderRadius: '7px', padding: '10px 12px', marginBottom: '8px', background: '#FAFAFA' },
     recHeader: { display: 'flex', alignItems: 'flex-start', gap: '9px' },
-    recNum: { fontSize: '15px', fontWeight: '700', color: '#1B6840', fontFamily: 'monospace', minWidth: '22px', flexShrink: 0, paddingTop: '1px' },
-
-    // Priority/ease/impact badges
+    recNum: { fontSize: '15px', fontWeight: '700', color: '#B72C6A', fontFamily: 'monospace', minWidth: '22px', flexShrink: 0, paddingTop: '1px' },
     badgeHigh: { background: '#FEE2E2', color: '#DC2626', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
-    badgeMid:  { background: '#FEF9C3', color: '#A16207', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
-    badgeLow:  { background: '#DBEAFE', color: '#1D4ED8', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
+    badgeMid: { background: '#FEF9C3', color: '#A16207', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
+    badgeLow: { background: '#DBEAFE', color: '#1D4ED8', fontSize: '8.5px', fontWeight: '700', padding: '1.5px 6px', borderRadius: '20px', textTransform: 'uppercase' },
     badgeEasy: { background: '#DCFCE7', color: '#15803d', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
     badgeMedium: { background: '#FEF9C3', color: '#A16207', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
     badgeHard: { background: '#FEE2E2', color: '#DC2626', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
     badgeImpact3: { background: '#EDE9FE', color: '#6D28D9', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
     badgeImpact2: { background: '#E0F2FE', color: '#0369A1', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
     badgeImpact1: { background: '#F3F4F6', color: '#6B7280', fontSize: '8.5px', fontWeight: '600', padding: '1.5px 6px', borderRadius: '20px' },
-
-    // Table
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' },
     th: { padding: '6px 10px', textAlign: 'left', color: '#6B7280', fontWeight: '600', fontSize: '9.5px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' },
     td: { padding: '5.5px 10px', borderBottom: '1px solid #F3F4F6', color: '#374151' },
-
-    // Page analysis card
     pageCard: { border: '1px solid #E5E7EB', borderRadius: '7px', padding: '10px 12px', marginBottom: '9px', background: '#FAFAFA' },
-
-    // Link row
-    linkRow: { display: 'flex', alignItems: 'center', gap: '8px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '4px', padding: '5px 9px', marginBottom: '4px', fontSize: '10.5px', fontFamily: 'monospace', color: '#374151' },
-
-    // Two columns
     twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
   }
 
@@ -245,17 +452,15 @@ function PdfTemplate({ auditData, pdfRef }) {
     return P.badgeLow
   }
   function easeBadge(e) {
-    if (e === 1) return { style: P.badgeEasy,   label: '⚡ Snadné' }
+    if (e === 1) return { style: P.badgeEasy, label: '⚡ Snadné' }
     if (e === 2) return { style: P.badgeMedium, label: '⏱ Střední' }
-    return               { style: P.badgeHard,   label: '⚙ Složité' }
+    return { style: P.badgeHard, label: '⚙ Složité' }
   }
   function impBadge(i) {
     if (i === 3) return { style: P.badgeImpact3, label: '🎯 Velký dopad' }
     if (i === 2) return { style: P.badgeImpact2, label: '📈 Střední dopad' }
-    return               { style: P.badgeImpact1, label: '➡ Malý dopad' }
+    return { style: P.badgeImpact1, label: '➡ Malý dopad' }
   }
-
-  // ── Shared header components ─────────────────────────────────────────────
 
   function FullHeader() {
     return (
@@ -264,11 +469,11 @@ function PdfTemplate({ auditData, pdfRef }) {
           <div style={P.logo}>
             <div style={P.logoBox}><span style={{ color: '#fff', fontWeight: '800', fontSize: '14px' }}>G</span></div>
             <span style={{ fontWeight: '700', fontSize: '17px', color: '#111827' }}>
-              Get<span style={{ color: '#1B6840' }}>Found</span>
+              Get<span style={{ color: '#B72C6A' }}>Found</span>
               <span style={{ fontWeight: '400', color: '#6B7280', fontSize: '13px' }}> Content Audit Report</span>
             </span>
           </div>
-          <div style={{ fontSize: '10.5px', color: '#9CA3AF', marginTop: '3px', marginLeft: '37px' }}>Automatizovaný audit obsahu e-shopu</div>
+          <div style={{ fontSize: '10.5px', color: '#9CA3AF', marginTop: '3px', marginLeft: '37px' }}>Automatizovaný audit obsahu webu</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: '600', color: '#111827', fontSize: '12px', marginBottom: '2px' }}>{date}</div>
@@ -284,7 +489,7 @@ function PdfTemplate({ auditData, pdfRef }) {
         <div style={P.logo}>
           <div style={P.logoBoxSm}><span style={{ color: '#fff', fontWeight: '800', fontSize: '11px' }}>G</span></div>
           <span style={{ fontWeight: '700', fontSize: '13.5px', color: '#111827' }}>
-            Get<span style={{ color: '#1B6840' }}>Found</span>
+            Get<span style={{ color: '#B72C6A' }}>Found</span>
             <span style={{ fontWeight: '400', color: '#9CA3AF', fontSize: '11px' }}> Content Audit Report</span>
           </span>
         </div>
@@ -302,7 +507,7 @@ function PdfTemplate({ auditData, pdfRef }) {
         <div style={P.footerText}>Vygenerováno GetFound Content Audit Tool · {date}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={P.footerText}>Strana {page}/{total}</span>
-          <span style={{ fontSize: '10.5px', color: '#1B6840', fontWeight: '700' }}>getfound.cz</span>
+          <span style={{ fontSize: '10.5px', color: '#B72C6A', fontWeight: '700' }}>getfound.cz</span>
         </div>
       </div>
     )
@@ -314,11 +519,10 @@ function PdfTemplate({ auditData, pdfRef }) {
     <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none' }} aria-hidden="true">
       <div ref={pdfRef}>
 
-        {/* ══════════════ PAGE 1 – Executive Summary ══════════════ */}
+        {/* PAGE 1 – Executive Summary */}
         <div style={{ ...P.page, ...P.pageBreak }}>
           <FullHeader />
 
-          {/* Score box */}
           <div style={P.scoreBox}>
             <div style={P.scoreCircle}><span style={P.scoreNum}>{score}</span></div>
             <div style={{ flex: 1 }}>
@@ -326,21 +530,19 @@ function PdfTemplate({ auditData, pdfRef }) {
               <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Skóre: <strong style={{ color: sc }}>{score}/100</strong></span>
                 <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Stránek: <strong style={{ color: '#111827' }}>{auditData.pagesAnalyzed}</strong></span>
-                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Broken linků: <strong style={{ color: '#EF4444' }}>{auditData.brokenLinksCount}</strong></span>
-                {dupsCount > 0 && <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Duplicit: <strong style={{ color: '#F59E0B' }}>{dupsCount}</strong></span>}
+                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Indexovatelných: <strong style={{ color: idxCount === idxTotal ? '#22c55e' : '#F59E0B' }}>{idxCount}/{idxTotal}</strong></span>
+                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>Typ: <strong style={{ color: '#111827' }}>{auditData.siteType === 'eshop' ? 'E-shop' : 'Web'}</strong></span>
               </div>
             </div>
           </div>
 
-          {/* AI summary */}
           {auditData.overallSummary && (
             <div style={P.summaryBox}>
-              <div style={{ fontSize: '9px', fontWeight: '700', color: '#1B6840', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '4px' }}>🤖 AI Shrnutí</div>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#B72C6A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '4px' }}>🤖 AI Shrnutí</div>
               <div style={{ fontSize: '11.5px', color: '#374151', lineHeight: '1.6' }}>{auditData.overallSummary}</div>
             </div>
           )}
 
-          {/* Category scores */}
           <div style={P.section}>
             <div style={P.sectionTitle}>Skóre po oblastech</div>
             {Object.entries(auditData.categoryScores || {}).map(([label, val]) => {
@@ -357,11 +559,10 @@ function PdfTemplate({ auditData, pdfRef }) {
 
           <div style={P.divider} />
 
-          {/* Issues + Strengths */}
           <div style={{ ...P.twoCol, marginBottom: '16px' }}>
             {auditData.topIssues?.length > 0 && (
               <div>
-                <div style={P.sectionTitle}>Hlavní problémy</div>
+                <div style={P.sectionTitle}>Hlavní problémy (across celý web)</div>
                 {auditData.topIssues.slice(0, 4).map((issue, i) => (
                   <div key={i} style={P.issueRow}><span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span><span>{issue}</span></div>
                 ))}
@@ -369,7 +570,7 @@ function PdfTemplate({ auditData, pdfRef }) {
             )}
             {auditData.topStrengths?.length > 0 && (
               <div>
-                <div style={P.sectionTitle}>Silné stránky</div>
+                <div style={P.sectionTitle}>Silné stránky webu</div>
                 {auditData.topStrengths.slice(0, 4).map((str, i) => (
                   <div key={i} style={P.passRow}><span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span><span>{str}</span></div>
                 ))}
@@ -380,16 +581,15 @@ function PdfTemplate({ auditData, pdfRef }) {
           <Footer page={1} total={TOTAL} />
         </div>
 
-        {/* ══════════════ PAGE 2 – Doporučení & Přehled stránek ══════════════ */}
+        {/* PAGE 2 – Doporučení & Přehled stránek */}
         <div style={{ ...P.page, ...P.pageBreak }}>
           <MiniHeader page={2} total={TOTAL} />
 
-          {/* Recommendations */}
           {auditData.topRecommendations?.length > 0 && (
             <div style={P.section}>
               <div style={P.sectionTitle}>Top doporučení</div>
               {auditData.topRecommendations.map((rec, i) => {
-                const impactText = rec.impactDescription || (typeof rec.impact === 'string' ? rec.impact : '')
+                const impactText = rec.impactDescription || ''
                 const eb = rec.ease != null ? easeBadge(rec.ease) : null
                 const ib = typeof rec.impact === 'number' ? impBadge(rec.impact) : null
                 return (
@@ -414,54 +614,6 @@ function PdfTemplate({ auditData, pdfRef }) {
 
           <div style={P.divider} />
 
-          {/* Site-wide issues + duplicates + keyword cannibalization */}
-          <div style={P.twoCol}>
-            <div>
-              {auditData.siteWideIssues?.length > 0 && (
-                <div style={P.section}>
-                  <div style={P.sectionTitle}>Problémy celého webu</div>
-                  {auditData.siteWideIssues.map((issue, i) => (
-                    <div key={i} style={P.issueRow}><span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span><span>{issue}</span></div>
-                  ))}
-                </div>
-              )}
-              {auditData.keywordCannibalization?.length > 0 && (
-                <div style={P.section}>
-                  <div style={P.sectionTitle}>Keyword Cannibalization</div>
-                  {auditData.keywordCannibalization.slice(0, 3).map((kw, i) => (
-                    <div key={i} style={P.issueRow}>
-                      <span style={{ color: '#F59E0B', flexShrink: 0 }}>⚠</span>
-                      <span><strong>"{kw.keyword}"</strong> – {kw.urls?.length} stránek soutěží o stejné KW</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              {(auditData.duplicateTitles?.length > 0 || auditData.duplicateDescriptions?.length > 0) && (
-                <div style={P.section}>
-                  <div style={P.sectionTitle}>Duplicitní obsah</div>
-                  {auditData.duplicateTitles?.slice(0, 3).map((d, i) => (
-                    <div key={`t${i}`} style={P.issueRow}>
-                      <span style={{ color: '#EF4444', flexShrink: 0 }}>⚠</span>
-                      <span>Title: <span style={{ fontFamily: 'monospace', fontSize: '10.5px' }}>{d.title?.slice(0, 38)}{d.title?.length > 38 ? '…' : ''}</span></span>
-                    </div>
-                  ))}
-                  {auditData.duplicateDescriptions?.slice(0, 3).map((d, i) => (
-                    <div key={`d${i}`} style={P.issueRow}>
-                      <span style={{ color: '#F59E0B', flexShrink: 0 }}>⚠</span>
-                      <span>Meta: <span style={{ fontFamily: 'monospace', fontSize: '10.5px' }}>{d.desc?.slice(0, 38)}{d.desc?.length > 38 ? '…' : ''}</span></span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={P.divider} />
-
-          {/* Pages score table */}
           <div style={P.section}>
             <div style={P.sectionTitle}>Hodnocení stránek</div>
             <div style={{ border: '1px solid #E5E7EB', borderRadius: '7px', overflow: 'hidden' }}>
@@ -472,22 +624,23 @@ function PdfTemplate({ auditData, pdfRef }) {
                     <th style={{ ...P.th, width: '76px' }}>Typ</th>
                     <th style={{ ...P.th, width: '44px', textAlign: 'right' }}>Skóre</th>
                     <th style={{ ...P.th, width: '52px', textAlign: 'right' }}>Slov</th>
+                    <th style={{ ...P.th, width: '60px', textAlign: 'center' }}>Index</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(auditData.pages || []).slice(0, 9).map((page, i) => {
                     const c = scoreColor(page.score)
-                    const typeL = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', other: 'Ostatní' }
+                    const typeL = { product: 'Produkt', category: 'Kategorie', homepage: 'Homepage', blog: 'Blog', about: 'O nás', contact: 'Kontakt', service: 'Služba', other: 'Ostatní' }
                     const path = (() => { try { return new URL(page.url).pathname || '/' } catch { return page.url } })()
                     const isLast = i >= Math.min((auditData.pages?.length || 0) - 1, 8)
+                    const idxOk = page.indexability?.indexable !== false
                     return (
                       <tr key={i} style={{ borderBottom: isLast ? 'none' : '1px solid #F3F4F6' }}>
-                        <td style={{ ...P.td, fontFamily: 'monospace', fontSize: '10.5px', color: '#374151' }}>
-                          {path.length > 48 ? path.slice(0, 46) + '…' : path}
-                        </td>
+                        <td style={{ ...P.td, fontFamily: 'monospace', fontSize: '10.5px' }}>{path.length > 44 ? path.slice(0, 42) + '…' : path}</td>
                         <td style={{ ...P.td, color: '#6B7280', fontSize: '11px' }}>{typeL[page.type] || page.type}</td>
                         <td style={{ ...P.td, textAlign: 'right', fontWeight: '700', color: c, fontFamily: 'monospace' }}>{page.score}</td>
                         <td style={{ ...P.td, textAlign: 'right', color: '#9CA3AF', fontSize: '11px' }}>{page.wordCount}</td>
+                        <td style={{ ...P.td, textAlign: 'center', fontSize: '11px', color: idxOk ? '#22c55e' : '#EF4444' }}>{idxOk ? '✓' : '⚠'}</td>
                       </tr>
                     )
                   })}
@@ -499,11 +652,10 @@ function PdfTemplate({ auditData, pdfRef }) {
           <Footer page={2} total={TOTAL} />
         </div>
 
-        {/* ══════════════ PAGE 3 – AI Analýza & Broken links ══════════════ */}
+        {/* PAGE 3 – AI analýza */}
         <div style={P.page}>
           <MiniHeader page={3} total={TOTAL} />
 
-          {/* AI per-page analysis */}
           {pagesWithAI.length > 0 && (
             <div style={P.section}>
               <div style={P.sectionTitle}>AI analýza klíčových stránek</div>
@@ -515,19 +667,17 @@ function PdfTemplate({ auditData, pdfRef }) {
                 const topIssue = ai.firstImpression?.issues?.[0] || ai.benefitGap?.issues?.[0] || ''
                 return (
                   <div key={i} style={P.pageCard}>
-                    {/* Page url + score */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '8px' }}>
                       <div style={{ background: c, color: '#fff', fontFamily: 'monospace', fontSize: '10.5px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', flexShrink: 0 }}>{page.score}</div>
                       <div style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</div>
                       <div style={{ fontSize: '9.5px', color: '#9CA3AF', flexShrink: 0 }}>{page.wordCount} slov</div>
                     </div>
-                    {/* AI sub-scores */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px', marginBottom: '8px' }}>
                       {[
                         { label: 'První dojem', val: ai.firstImpression?.score },
                         { label: 'Benefit gap', val: ai.benefitGap?.score },
-                        { label: 'Tón textu',   val: ai.emotionalTone?.score },
-                        { label: 'Kvalita',      val: ai.contentQuality?.score },
+                        { label: 'Tón textu', val: ai.emotionalTone?.score },
+                        { label: 'Kvalita', val: ai.contentQuality?.score },
                       ].map(({ label, val }) => {
                         if (val == null) return null
                         const c2 = scoreColor(val)
@@ -539,16 +689,14 @@ function PdfTemplate({ auditData, pdfRef }) {
                         )
                       })}
                     </div>
-                    {/* Top issue */}
                     {topIssue && (
                       <div style={{ fontSize: '11px', color: '#374151', marginBottom: quickWin ? '6px' : '0', paddingLeft: '4px' }}>
                         <span style={{ color: '#EF4444' }}>⚠ </span>{topIssue}
                       </div>
                     )}
-                    {/* Quick win */}
                     {quickWin && (
-                      <div style={{ background: '#ECFDF5', border: '1px solid rgba(27,104,64,0.2)', borderRadius: '4px', padding: '5px 8px' }}>
-                        <span style={{ fontSize: '8.5px', fontWeight: '700', color: '#1B6840', textTransform: 'uppercase', letterSpacing: '0.04em' }}>⚡ Quick Win: </span>
+                      <div style={{ background: '#FDF2F8', border: '1px solid rgba(183,44,106,0.2)', borderRadius: '4px', padding: '5px 8px' }}>
+                        <span style={{ fontSize: '8.5px', fontWeight: '700', color: '#B72C6A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>⚡ Quick Win: </span>
                         <span style={{ fontSize: '11px', color: '#374151' }}>{quickWin}</span>
                       </div>
                     )}
@@ -558,28 +706,10 @@ function PdfTemplate({ auditData, pdfRef }) {
             </div>
           )}
 
-          {/* Broken links */}
-          {auditData.brokenLinks?.length > 0 && (
-            <div style={P.section}>
-              <div style={P.divider} />
-              <div style={P.sectionTitle}>Broken linky – 404 chyby ({auditData.brokenLinks.length})</div>
-              {auditData.brokenLinks.slice(0, 10).map((link, i) => {
-                const path = (() => { try { return new URL(link).pathname } catch { return link } })()
-                return (
-                  <div key={i} style={P.linkRow}>
-                    <span style={{ color: '#EF4444', fontWeight: '700', flexShrink: 0 }}>404</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* CTA */}
-          <div style={{ background: '#1B6840', borderRadius: '10px', padding: '18px 24px', marginTop: '20px', textAlign: 'center' }}>
+          <div style={{ background: '#B72C6A', borderRadius: '10px', padding: '18px 24px', marginTop: '20px', textAlign: 'center' }}>
             <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>Chcete to napravit?</div>
             <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '7px' }}>Pomůžeme vám s obsahem webu</div>
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', marginBottom: '12px' }}>GetFound se specializuje na SEO, tvorbu obsahu a výkonnostní marketing pro e-shopy.</div>
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', marginBottom: '12px' }}>GetFound se specializuje na SEO, tvorbu obsahu a výkonnostní marketing.</div>
             <div style={{ display: 'inline-block', fontSize: '12px', fontWeight: '700', color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '6px 20px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.3)' }}>
               getfound.cz/kontakt
             </div>
@@ -593,7 +723,7 @@ function PdfTemplate({ auditData, pdfRef }) {
   )
 }
 
-// ─── Main Results ──────────────────────────────────────────────────────────
+// ─── Main Results ─────────────────────────────────────────────────────────────
 
 export default function Results({ auditData, onRestart, contact }) {
   const [tab, setTab] = useState('overview')
@@ -605,7 +735,11 @@ export default function Results({ auditData, onRestart, contact }) {
   const score  = auditData.overallScore
   const sc     = scoreColor(score)
   const sl     = scoreLabel(score)
-  const dupsCount = (auditData.duplicateTitles?.length || 0) + (auditData.duplicateDescriptions?.length || 0)
+
+  const idxCount = auditData.indexability?.indexableCount ?? null
+  const idxTotal = auditData.indexability?.totalPages ?? auditData.pagesAnalyzed
+  const searchIdx = auditData.indexability?.searchIndexation || {}
+  const siteType  = auditData.siteType || 'website'
 
   const tabs = [
     { id: 'overview', label: 'Přehled' },
@@ -646,7 +780,6 @@ export default function Results({ auditData, onRestart, contact }) {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 pb-28">
 
-      {/* Off-screen PDF template */}
       <PdfTemplate auditData={auditData} pdfRef={pdfRef} />
 
       {/* ── Header ── */}
@@ -708,26 +841,52 @@ export default function Results({ auditData, onRestart, contact }) {
           <div className="text-2xl font-display font-700 text-text-primary">{auditData.pagesAnalyzed}</div>
           <div className="text-xs text-muted mt-1">stránek auditováno</div>
         </div>
+
+        {/* Indexability card */}
+        {idxCount !== null ? (
+          <div className={`bg-white border rounded-xl p-4 shadow-sm ${idxCount < idxTotal ? 'border-yellow-200' : 'border-border'}`}>
+            <div className="text-xs font-700 uppercase tracking-wide mb-0.5" style={{ color: idxCount < idxTotal ? '#D97706' : '#22c55e' }}>
+              Indexovatelnost
+            </div>
+            <div className="text-2xl font-display font-700" style={{ color: idxCount < idxTotal ? '#D97706' : '#22c55e' }}>
+              {idxCount}/{idxTotal}
+            </div>
+            <div className="text-xs mt-1" style={{ color: idxCount < idxTotal ? '#B45309' : '#16a34a' }}>
+              {idxCount < idxTotal ? 'stránek má problém' : 'stránek OK'}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
+            <div className="text-xs text-muted">Indexovatelnost</div>
+            <div className="text-sm font-700 text-text-primary mt-1">Načítám…</div>
+          </div>
+        )}
+
+        {/* Site type card */}
         <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
-          <div className="text-xs font-700 text-red-500 uppercase tracking-wide mb-0.5">Broken linků</div>
-          <div className="text-2xl font-display font-700 text-red-500">{auditData.brokenLinksCount}</div>
-          <div className="text-xs text-red-400">chyby 404</div>
-        </div>
-        <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
-          <div className="text-xs font-700 text-yellow-600 uppercase tracking-wide mb-0.5">Duplicit</div>
-          <div className="text-2xl font-display font-700 text-yellow-600">{dupsCount}</div>
-          <div className="text-xs text-yellow-500">nalezeny</div>
+          <div className="text-xs text-muted uppercase tracking-wide font-700 mb-0.5">Typ webu</div>
+          <div className="text-xl font-display font-700 text-text-primary">
+            {siteType === 'eshop' ? '🛒' : '🏢'}
+          </div>
+          <div className="text-xs text-text-secondary mt-1">
+            {siteType === 'eshop' ? 'E-shop' : 'Firemní web'}
+          </div>
         </div>
       </div>
 
       {/* ── AI summary ── */}
       {auditData.overallSummary && (
-        <div className="bg-white border border-border rounded-xl p-5 mb-8 shadow-sm fade-up fade-up-2">
+        <div className="bg-white border border-accent/20 rounded-xl p-5 mb-8 shadow-sm fade-up fade-up-2" style={{ background: 'linear-gradient(135deg, #fff 60%, #FDF2F8 100%)' }}>
           <div className="flex items-start gap-3">
-            <span className="text-lg mt-0.5">🤖</span>
-            <div>
-              <div className="text-xs font-mono text-muted uppercase tracking-wide mb-1.5">AI Shrnutí</div>
-              <p className="text-text-secondary text-sm leading-relaxed">{auditData.overallSummary}</p>
+            <div className="shrink-0 w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+              <span className="text-sm">🤖</span>
+            </div>
+            <div className="flex-1">
+              <div className="text-xs font-700 text-accent uppercase tracking-wide mb-2">Shrnutí auditu</div>
+              <p className="text-text-primary text-sm leading-relaxed font-500">{auditData.overallSummary}</p>
+              <div className="text-xs text-muted mt-2">
+                Na základě analýzy {auditData.pagesAnalyzed} stránek · {siteType === 'eshop' ? 'E-shop' : 'Firemní web'}
+              </div>
             </div>
           </div>
         </div>
@@ -753,6 +912,8 @@ export default function Results({ auditData, onRestart, contact }) {
       {/* ── Tab: Přehled ── */}
       {tab === 'overview' && (
         <div className="space-y-8">
+
+          {/* Category scores with tooltips */}
           <div>
             <h3 className="font-display text-base font-700 text-text-primary mb-4 flex items-center gap-2">
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
@@ -765,7 +926,14 @@ export default function Results({ auditData, onRestart, contact }) {
                   <div key={label} className="bg-white border border-border rounded-xl p-4 flex items-center gap-4 shadow-sm">
                     <div className="text-2xl font-display font-700 shrink-0 w-12" style={{ color: c }}>{val}</div>
                     <div className="flex-1">
-                      <div className="text-sm text-text-primary mb-2">{label}</div>
+                      <div className="flex items-center gap-1.5 text-sm text-text-primary mb-2">
+                        {label}
+                        {CATEGORY_TOOLTIPS[label] && (
+                          <Tooltip text={CATEGORY_TOOLTIPS[label]}>
+                            <span className="text-muted cursor-help text-xs select-none">ⓘ</span>
+                          </Tooltip>
+                        )}
+                      </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full rounded-full" style={{ width: `${val}%`, backgroundColor: c }} />
                       </div>
@@ -776,14 +944,16 @@ export default function Results({ auditData, onRestart, contact }) {
             </div>
           </div>
 
+          {/* Issues + Strengths */}
           {(auditData.topIssues?.length > 0 || auditData.topStrengths?.length > 0) && (
             <div className="grid md:grid-cols-2 gap-6">
               {auditData.topIssues?.length > 0 && (
                 <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
-                  <h3 className="text-sm font-700 text-text-primary mb-4 flex items-center gap-2">
+                  <h3 className="text-sm font-700 text-text-primary mb-1 flex items-center gap-2">
                     <svg width="15" height="15" fill="none" stroke="#F59E0B" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                     Hlavní problémy
                   </h3>
+                  <p className="text-xs text-muted mb-3">Opakující se vzorce přes {auditData.pagesAnalyzed} auditovaných stránek</p>
                   <ul className="space-y-2.5">
                     {auditData.topIssues.map((issue, i) => <IssueItem key={i} text={issue} type="issue" />)}
                   </ul>
@@ -791,10 +961,11 @@ export default function Results({ auditData, onRestart, contact }) {
               )}
               {auditData.topStrengths?.length > 0 && (
                 <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
-                  <h3 className="text-sm font-700 text-text-primary mb-4 flex items-center gap-2">
+                  <h3 className="text-sm font-700 text-text-primary mb-1 flex items-center gap-2">
                     <svg width="15" height="15" fill="none" stroke="#22c55e" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Silné stránky
+                    Silné stránky webu
                   </h3>
+                  <p className="text-xs text-muted mb-3">Co web dělá dobře napříč vzorkem stránek</p>
                   <ul className="space-y-2.5">
                     {auditData.topStrengths.map((s, i) => <IssueItem key={i} text={s} type="pass" />)}
                   </ul>
@@ -803,25 +974,70 @@ export default function Results({ auditData, onRestart, contact }) {
             </div>
           )}
 
-          {auditData.brokenLinks?.length > 0 && (
+          {/* Indexability section */}
+          {auditData.indexability && (
             <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
               <h3 className="text-sm font-700 text-text-primary mb-4 flex items-center gap-2">
-                <svg width="15" height="15" fill="none" stroke="#EF4444" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                Broken linky (404 chyby)
+                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35"/></svg>
+                Indexovatelnost stránek
               </h3>
-              <div className="space-y-2">
-                {auditData.brokenLinks.map((link, i) => {
-                  const path = (() => { try { return new URL(link).pathname } catch { return link } })()
-                  return (
-                    <div key={i} className="flex items-center justify-between gap-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="bg-red-500 text-white text-xs font-700 font-mono px-1.5 py-0.5 rounded shrink-0">404</span>
-                        <span className="text-xs font-mono text-red-700 truncate">{path}</span>
-                      </div>
-                      <span className="text-xs text-muted shrink-0 whitespace-nowrap">Kde se nachází?</span>
-                    </div>
-                  )
-                })}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className={`rounded-xl p-4 border ${idxCount === idxTotal ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                  <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Technicky indexovatelné</div>
+                  <div className="text-2xl font-display font-700" style={{ color: idxCount === idxTotal ? '#16a34a' : '#D97706' }}>
+                    {idxCount}/{idxTotal}
+                  </div>
+                  <div className="text-xs text-muted mt-1">stránek ze vzorku</div>
+                </div>
+
+                <div className="rounded-xl p-4 border border-border bg-surface">
+                  <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Seznam.cz index</div>
+                  <div className="text-2xl font-display font-700 text-text-primary">
+                    {searchIdx.seznam === 'blocked' ? '—' : searchIdx.seznam != null ? searchIdx.seznam.toLocaleString('cs') : '?'}
+                  </div>
+                  <div className="text-xs text-muted mt-1">
+                    {searchIdx.seznam === 'blocked' ? 'nelze ověřit' : searchIdx.seznam != null ? 'stránek v indexu' : 'načítám…'}
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-4 border border-border bg-surface">
+                  <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Google index</div>
+                  <div className="text-2xl font-display font-700 text-text-primary">
+                    {searchIdx.google === 'blocked' ? '—' : searchIdx.google != null ? searchIdx.google.toLocaleString('cs') : '?'}
+                  </div>
+                  <div className="text-xs text-muted mt-1">
+                    {searchIdx.google === 'blocked' ? 'anti-bot ochrana' : searchIdx.google != null ? 'stránek v indexu' : 'načítám…'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Per-page indexability issues */}
+              {auditData.indexability.pages?.some(p => !p.indexable || p.issues?.length > 0) && (
+                <div className="space-y-2">
+                  <div className="text-xs font-700 text-muted uppercase tracking-wide mb-2">Stránky s problémy indexace</div>
+                  {auditData.indexability.pages
+                    .filter(p => !p.indexable || p.issues?.length > 0)
+                    .map((p, i) => {
+                      const path = (() => { try { return new URL(p.url).pathname } catch { return p.url } })()
+                      return (
+                        <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2.5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-yellow-600">⚠</span>
+                            <span className="text-xs font-mono text-yellow-800 truncate">{path}</span>
+                          </div>
+                          {p.issues?.map((issue, j) => (
+                            <div key={j} className="text-xs text-yellow-700 ml-5">{issue.detail}</div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
+
+              <div className="mt-3 text-xs text-muted flex items-center gap-1.5">
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-4m0-4h.01"/></svg>
+                Počty v Google/Seznam jsou hrubé odhady z operátoru site:. Pro přesná data použijte Google Search Console.
               </div>
             </div>
           )}
@@ -856,14 +1072,12 @@ export default function Results({ auditData, onRestart, contact }) {
                   return (
                     <div key={rec.origIdx} className={`rounded-xl border p-5 ${catInfo.bg} ${catInfo.border}`}>
                       <div className="flex items-start gap-3">
-                        <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-700 text-white mt-0.5" style={{ background: '#1B6840' }}>
+                        <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-700 text-white mt-0.5 bg-accent">
                           {rec.origIdx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className={`text-xs font-600 ${catInfo.color}`}>
-                              {catInfo.emoji} {catInfo.label}
-                            </span>
+                            <span className={`text-xs font-600 ${catInfo.color}`}>{catInfo.emoji} {catInfo.label}</span>
                             {rec.priority && (
                               <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${prioStyles.badge} ${prioStyles.text}`}>
                                 {rec.priority.toUpperCase()}
@@ -879,7 +1093,7 @@ export default function Results({ auditData, onRestart, contact }) {
                           {rec.ease != null && typeof rec.impact === 'number' && (
                             <div className="flex items-center gap-4 text-xs text-muted">
                               <span className="flex items-center gap-1.5">
-                                <DotIndicator value={4 - rec.ease} colorFilled="#1B6840" />
+                                <DotIndicator value={4 - rec.ease} colorFilled="#B72C6A" />
                                 {rec.ease === 1 ? 'Snadné' : rec.ease === 2 ? 'Střední náročnost' : 'Složité'}
                               </span>
                               <span className="flex items-center gap-1.5">
@@ -906,7 +1120,7 @@ export default function Results({ auditData, onRestart, contact }) {
         )
       })()}
 
-      {/* ── CTA section ── */}
+      {/* ── CTA ── */}
       <div className="mt-14 rounded-2xl overflow-hidden">
         <div className="bg-accent px-8 py-12 text-center">
           <div className="text-accent-light/70 font-mono text-xs uppercase tracking-widest mb-3">Chcete to napravit?</div>

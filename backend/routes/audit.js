@@ -3,6 +3,7 @@ const router = express.Router();
 const { crawlWebsite, normalizeUrl } = require('../services/crawler');
 const { analyzePageRules, checkDuplicates, calculatePageScore } = require('../services/analyzer');
 const { analyzePageWithAI, analyzeSiteWide } = require('../services/aiAnalyzer');
+const { auditIndexability } = require('../services/indexability');
 
 /**
  * POST /api/audit
@@ -19,12 +20,11 @@ router.post('/', async (req, res) => {
   let normalizedUrl;
   try {
     normalizedUrl = normalizeUrl(url.trim());
-    new URL(normalizedUrl); // validate
+    new URL(normalizedUrl);
   } catch {
     return res.status(400).json({ error: 'Neplatná URL adresa' });
   }
 
-  // Block localhost/private IPs
   if (/localhost|127\.0\.0|192\.168|10\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])/.test(normalizedUrl)) {
     return res.status(400).json({ error: 'Interní adresy nejsou povoleny' });
   }
@@ -33,8 +33,8 @@ router.post('/', async (req, res) => {
     console.log(`\n🔍 Starting audit for: ${normalizedUrl}`);
     const startTime = Date.now();
 
-    // 1. Crawl website
-    const { pages, brokenLinks } = await crawlWebsite(normalizedUrl);
+    // 1. Crawl website (returns pages + siteType)
+    const { pages, siteType } = await crawlWebsite(normalizedUrl);
 
     if (pages.length === 0) {
       return res.status(422).json({ error: 'Web se nepodařilo načíst. Zkontrolujte URL nebo zkuste znovu.' });
@@ -46,59 +46,59 @@ router.post('/', async (req, res) => {
       checks: analyzePageRules(page)
     }));
 
-    // 3. Duplicate content detection across all pages
+    // 3. Duplicate content detection (kept for internal use / PDF)
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
-    // 4. AI analysis – limit to 5 most important pages to control costs
-    const priorityPages = [
-      analyzedPages.find(p => p.type === 'homepage') || analyzedPages[0],
-      ...analyzedPages.filter(p => p.type === 'product').slice(0, 2),
-      ...analyzedPages.filter(p => p.type === 'category').slice(0, 2)
-    ].filter(Boolean).filter((p, i, arr) => arr.findIndex(x => x.url === p.url) === i);
-
+    // 4. AI analysis – ALL pages in parallel (using Haiku for speed/cost)
     const aiResults = await Promise.all(
-      priorityPages.map(page => analyzePageWithAI(page))
+      analyzedPages.map(page => analyzePageWithAI(page, siteType))
     );
 
     // Attach AI results to pages
-    priorityPages.forEach((page, i) => {
-      const idx = analyzedPages.findIndex(p => p.url === page.url);
-      if (idx >= 0) analyzedPages[idx].aiAnalysis = aiResults[i];
+    analyzedPages.forEach((page, i) => {
+      analyzedPages[i].aiAnalysis = aiResults[i];
     });
 
-    // 5. Site-wide AI analysis
-    const siteWide = await analyzeSiteWide(pages);
+    // 5. Site-wide AI analysis (Sonnet for quality)
+    const siteWide = await analyzeSiteWide(pages, siteType);
 
-    // 6. Calculate scores
+    // 6. Indexability audit (robots.txt + meta robots + canonical + search engines)
+    const indexability = await auditIndexability(pages, normalizedUrl);
+
+    // 7. Calculate scores
     const pageScores = analyzedPages.map(page => {
       const ruleScore = calculatePageScore(page.checks);
-      const aiScore = page.aiAnalysis
+      const ai = page.aiAnalysis;
+      const aiScore = ai
         ? Math.round((
-            page.aiAnalysis.firstImpression.score +
-            page.aiAnalysis.benefitGap.score +
-            page.aiAnalysis.emotionalTone.score +
-            page.aiAnalysis.contentQuality.score
+            ai.firstImpression.score +
+            ai.benefitGap.score +
+            ai.emotionalTone.score +
+            ai.contentQuality.score
           ) / 4)
         : null;
 
       const finalScore = aiScore !== null
-        ? Math.round(ruleScore * 0.65 + aiScore * 0.35)
+        ? Math.round(ruleScore * 0.60 + aiScore * 0.40)
         : ruleScore;
 
-      return { ...page, ruleScore, aiScore, finalScore };
+      // Merge indexability data into each page
+      const pageIndexability = indexability.pages.find(p => p.url === page.url) || null;
+
+      return { ...page, ruleScore, aiScore, finalScore, indexability: pageIndexability };
     });
 
     const overallScore = Math.round(
       pageScores.reduce((sum, p) => sum + p.finalScore, 0) / pageScores.length
     );
 
-    // 7. Category scores
+    // 8. Category scores
     const categoryScores = {
       'Title & Meta': avgScore(pageScores, p => (p.checks.title.score + p.checks.metaDescription.score) / 2),
       'Nadpisy & Struktura': avgScore(pageScores, p => p.checks.headings.score),
       'Kvalita obsahu': avgScore(pageScores, p => {
-        const ai = p.aiAnalysis?.contentQuality?.score || p.checks.thinContent.score;
-        return (p.checks.thinContent.score + ai) / 2;
+        const ai = p.aiAnalysis?.contentQuality?.score;
+        return ai != null ? (p.checks.thinContent.score + ai) / 2 : p.checks.thinContent.score;
       }),
       'Obrázky': avgScore(pageScores, p => p.checks.images.score),
       'Technické SEO': avgScore(pageScores, p => (p.checks.structuredData.score + p.checks.openGraph.score + p.checks.url.score) / 3),
@@ -108,7 +108,7 @@ router.post('/', async (req, res) => {
       })
     };
 
-    // 8. Collect top issues
+    // 9. Collect top issues (site-wide, from all pages)
     const allIssues = [];
     for (const page of pageScores) {
       for (const check of Object.values(page.checks)) {
@@ -119,36 +119,45 @@ router.post('/', async (req, res) => {
         allIssues.push(...(page.aiAnalysis.benefitGap?.issues || []));
       }
     }
-
-    // Deduplicate and take top 5
     const uniqueIssues = [...new Set(allIssues)].slice(0, 5);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ Audit completed in ${elapsed}s | Score: ${overallScore}/100 | Pages: ${pages.length}`);
+    console.log(`✅ Audit completed in ${elapsed}s | Score: ${overallScore}/100 | Pages: ${pages.length} | Type: ${siteType}`);
 
     const result = {
       url: normalizedUrl,
+      siteType,
       overallScore,
       categoryScores,
       pagesAnalyzed: pages.length,
-      brokenLinksCount: brokenLinks.length,
-      brokenLinks: brokenLinks.slice(0, 10),
-      duplicateTitles,
-      duplicateDescriptions,
+      // Indexability summary (replaces broken links / duplicates in overview)
+      indexability: {
+        robotsTxtExists: indexability.robotsTxtExists,
+        robotsTxtUrl: indexability.robotsTxtUrl,
+        indexableCount: indexability.indexableCount,
+        totalPages: indexability.totalPages,
+        searchIndexation: indexability.searchIndexation
+      },
       topIssues: uniqueIssues,
       topStrengths: siteWide.topStrengths || [],
       topRecommendations: siteWide.topRecommendations || [],
       overallSummary: siteWide.overallSummary || '',
       siteWideIssues: siteWide.siteWideIssues || [],
       keywordCannibalization: siteWide.keywordCannibalization || [],
+      // Duplicates kept in response for reference but removed from overview display
+      duplicateTitles,
+      duplicateDescriptions,
       pages: pageScores.map(p => ({
         url: p.url,
         type: p.type,
         title: p.title,
         score: p.finalScore,
+        ruleScore: p.ruleScore,
+        aiScore: p.aiScore,
         checks: p.checks,
         aiAnalysis: p.aiAnalysis || null,
-        wordCount: p.wordCount
+        wordCount: p.wordCount,
+        indexability: p.indexability
       })),
       analysedAt: new Date().toISOString(),
       durationSeconds: parseFloat(elapsed)
