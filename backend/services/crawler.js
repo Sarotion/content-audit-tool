@@ -31,8 +31,13 @@ function detectTypeFromUrl(url) {
     const urlObj = new URL(u);
     if (urlObj.pathname === '/' || urlObj.pathname === '') return 'homepage';
   } catch {}
-  if (/\/(produkt|product|zbozi|item|p\/)/.test(u)) return 'product';
-  if (/\/(kategori|category|vypis|collection|c\/)/.test(u)) return 'category';
+  // Shoptet: _z{id} = product, _k{id} = category (very common Czech e-shop platform)
+  if (/_z\d+(\/|$)/.test(u)) return 'product';
+  if (/_k\d+(\/|$)/.test(u)) return 'category';
+  // Standard patterns (WooCommerce, Shopify, custom)
+  if (/\/(produkt|product|zbozi|item|products?\/)/.test(u)) return 'product';
+  if (/\/(kategori|category|vypis|collection|collections?\/)/.test(u)) return 'category';
+  if (/\/product-category\//.test(u)) return 'category';
   if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 'blog';
   if (/\/(o-nas|o-firme|about|o-spolecnosti|kdo-jsme)/.test(u)) return 'about';
   if (/\/(kontakt|contact)/.test(u)) return 'contact';
@@ -51,8 +56,13 @@ function detectPageType(url, $) {
   } catch {}
 
   // ── URL-based detection (fast path) ──────────────────────────────────────
-  if (/\/(produkt|product|zbozi|item)/.test(u)) return 'product';
-  if (/\/(kategori|category|vypis|collection)/.test(u)) return 'category';
+  // Shoptet: _z{id} = product, _k{id} = category
+  if (/_z\d+(\/|$)/.test(u)) return 'product';
+  if (/_k\d+(\/|$)/.test(u)) return 'category';
+  // Standard patterns
+  if (/\/(produkt|product|zbozi|item|products?\/)/.test(u)) return 'product';
+  if (/\/(kategori|category|vypis|collection|collections?\/)/.test(u)) return 'category';
+  if (/\/product-category\//.test(u)) return 'category';
   if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 'blog';
   if (/\/(o-nas|o-firme|about|o-spolecnosti|kdo-jsme)/.test(u)) return 'about';
   if (/\/(kontakt|contact)/.test(u)) return 'contact';
@@ -62,8 +72,12 @@ function detectPageType(url, $) {
   // Product page: Schema.org Product type or add-to-cart button
   if ($('[itemtype*="schema.org/Product"], [itemtype*="Product"]').length > 0) return 'product';
   if ($('[class*="add-to-cart"], [class*="do-kosiku"], [class*="pridat-do-kosiku"], [data-action*="cart"], form[action*="kosik"], form[action*="cart"]').length > 0) return 'product';
+  // Shoptet-specific product signals
+  if ($('[class*="pd-buy"], [class*="product-detail-buy"], [class*="buy-btn"], [id*="buy-btn"]').length > 0) return 'product';
   // Category/listing page: multiple product tiles visible on one page
   if ($('[class*="product-item"], [class*="product-card"], [class*="item-product"], [data-product-id], [class*="product-tile"]').length >= 4) return 'category';
+  // Shoptet-specific category signals: product list with multiple items
+  if ($('ul.product-list li, [class*="category-product"], .products-grid .product, [class*="produkty"] li').length >= 4) return 'category';
 
   return 'other';
 }
@@ -100,7 +114,8 @@ function detectSiteType(pageData, $) {
   // Internal links to typical e-shop URL patterns (products/categories)
   const internalLinks = pageData.internalLinks || [];
   const eshopLinkCount = internalLinks.filter(l =>
-    /\/(produkt|product|zbozi|item|kategori|category|collection|vypis|obchod|shop\/)/i.test(l.href)
+    /\/(produkt|product|zbozi|item|kategori|category|collection|vypis|obchod|shop\/|product-category\/)/i.test(l.href) ||
+    /_[kz]\d+(\/|$)/.test(l.href)  // Shoptet: _k{id} category, _z{id} product
   ).length;
   if (eshopLinkCount >= 3) score += 3;
   else if (eshopLinkCount >= 1) score += 2;
@@ -171,8 +186,13 @@ const SLOTS = {
 function urlPriorityForType(url, siteType) {
   const u = url.toLowerCase();
   if (siteType === 'eshop') {
-    if (/\/(produkt|product|zbozi|item)/.test(u)) return 10;
-    if (/\/(kategori|category|vypis|collection)/.test(u)) return 9;
+    // Shoptet: _z{id} = product, _k{id} = category
+    if (/_z\d+(\/|$)/.test(u)) return 10;
+    if (/_k\d+(\/|$)/.test(u)) return 9;
+    // Standard patterns
+    if (/\/(produkt|product|zbozi|item|products?\/)/.test(u)) return 10;
+    if (/\/(kategori|category|vypis|collection|collections?\/)/.test(u)) return 9;
+    if (/\/product-category\//.test(u)) return 9;
     if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 5;
     if (/\/(o-nas|o-firme|about|kontakt|contact)/.test(u)) return 3;
     return 1;
