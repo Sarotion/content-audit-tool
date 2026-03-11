@@ -25,8 +25,10 @@ export default function LeadGate({ auditData, onSubmit }) {
   const scoreColor = score >= 70 ? '#22c55e' : score >= 50 ? '#F59E0B' : '#ef4444'
   const scoreLabel = score >= 70 ? 'Dobrý základ' : score >= 50 ? 'Potřebuje práci' : 'Kritický stav'
 
-  const dupsCount = (auditData.duplicateTitles?.length || 0) + (auditData.duplicateDescriptions?.length || 0)
-  const problemsCount = (auditData.topIssues?.length || 0) + (auditData.brokenLinksCount || 0) + dupsCount
+  const idxCount = auditData.indexability?.indexableCount ?? null
+  const idxTotal = auditData.indexability?.totalPages ?? auditData.pagesAnalyzed
+  const idxProblems = idxCount !== null ? idxTotal - idxCount : 0
+  const problemsCount = (auditData.topIssues?.length || 0) + idxProblems
 
   function validate() {
     const errs = {}
@@ -61,7 +63,8 @@ export default function LeadGate({ auditData, onSubmit }) {
                   {scoreLabel}
                 </div>
                 <div className="text-text-secondary text-sm mt-1">
-                  {auditData.pagesAnalyzed} stránek · {auditData.brokenLinksCount} broken linků
+                  {auditData.pagesAnalyzed} stránek · {auditData.siteType === 'eshop' ? 'E-shop' : 'Firemní web'}
+                  {idxCount !== null && ` · ${idxCount}/${idxTotal} indexovatelných`}
                 </div>
                 {problemsCount > 0 && (
                   <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 rounded-full px-2.5 py-0.5 text-xs font-600">

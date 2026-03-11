@@ -62,31 +62,59 @@ function detectPageType(url, $) {
 
 /**
  * Detect whether a site is an e-shop or a regular website
- * based on homepage content signals
+ * based on homepage content signals. Uses a wide range of heuristics
+ * to handle platforms like Shoptet, WooCommerce, custom builds, etc.
  */
 function detectSiteType(pageData, $) {
   let score = 0;
 
-  // Cart / checkout links
-  if ($('a[href*="/kosik"], a[href*="/cart"], a[href*="/pokladna"], a[href*="/checkout"], a[href*="/nakupni-kosik"]').length > 0) score += 3;
+  // ── Strong e-shop signals (each +3) ──────────────────────────────────────
 
-  // Cart-like icons or elements
-  if ($('[class*="cart"], [class*="kosik"], [data-cart], [class*="basket"], [id*="cart"], [id*="kosik"]').length > 0) score += 2;
+  // Explicit cart / checkout links in anchor hrefs
+  if ($('a[href*="/kosik"], a[href*="/cart"], a[href*="/pokladna"], a[href*="/checkout"], a[href*="/nakupni-kosik"], a[href*="/objednavka"]').length > 0) score += 3;
 
-  // E-commerce platform signals
-  if ($('[class*="woocommerce"], [class*="shoptet"], [class*="shopify"], [class*="prestashop"]').length > 0) score += 3;
+  // E-commerce platform CSS fingerprints
+  if ($('[class*="woocommerce"], [class*="shoptet"], [class*="shopify"], [class*="prestashop"], [class*="opencart"], [class*="magento"]').length > 0) score += 3;
 
-  // Product schema on homepage
-  if ((pageData.structuredData || []).flat().some(t => /product|offer/i.test(String(t)))) score += 2;
+  // Product schema markup (very reliable)
+  if ((pageData.structuredData || []).flat().some(t => /product|offer|shoppingcart/i.test(String(t)))) score += 3;
 
-  // Price elements
-  if ($('[class*="price"], [class*="cena"], [itemprop="price"], .wc-Price-amount').length > 2) score += 2;
+  // ── Moderate signals (each +2) ────────────────────────────────────────────
 
-  // Internal links to product/category pages
-  if ((pageData.internalLinks || []).some(l =>
-    /\/(produkt|product|zbozi|kategori|category|collection|vypis)/i.test(l.href)
-  )) score += 2;
+  // Cart-related elements (class/id/data attributes)
+  if ($('[class*="cart"], [class*="kosik"], [data-cart], [class*="basket"], [id*="cart"], [id*="kosik"], [class*="nakupni-kosik"]').length > 0) score += 2;
 
+  // Price elements or itemprop price
+  if ($('[class*="price"], [class*="cena"], [itemprop="price"], [class*="kc"], [class*="kcs"], .wc-Price-amount, [data-price]').length > 1) score += 2;
+
+  // Internal links to typical e-shop URL patterns (products/categories)
+  const internalLinks = pageData.internalLinks || [];
+  const eshopLinkCount = internalLinks.filter(l =>
+    /\/(produkt|product|zbozi|item|kategori|category|collection|vypis|obchod|shop\/)/i.test(l.href)
+  ).length;
+  if (eshopLinkCount >= 3) score += 3;
+  else if (eshopLinkCount >= 1) score += 2;
+
+  // Links to shipping / payment pages
+  if (internalLinks.some(l => /\/(doprava|platba|dodani|payment|shipping|dopravni-podminky)/i.test(l.href))) score += 2;
+
+  // ── Weak signals (each +1) ────────────────────────────────────────────────
+
+  // "Add to cart" button text anywhere on page
+  const bodyText = pageData.bodyText || '';
+  if (/přidat do košíku|do košíku|koupit|add to cart|in den warenkorb/i.test(bodyText)) score += 2;
+
+  // Currency mention in page text (prices listed)
+  if (/\d+[\s\u00A0]*(Kč|EUR|€|\$)/i.test(bodyText)) score += 1;
+
+  // Navigation / menu contains shop-like words
+  const navText = $('nav, [role="navigation"], .menu, .navigation, .navbar, header').text();
+  if (/košík|cart|katalog|produkty|obchod|eshop|hledat.*zboží/i.test(navText)) score += 2;
+
+  // Input for quantity (typical on product / category pages)
+  if ($('input[type="number"][name*="qty"], input[name*="quantity"], input[name*="mnozstvi"]').length > 0) score += 2;
+
+  console.log(`  E-shop detection score: ${score} (threshold ≥3)`);
   return score >= 3 ? 'eshop' : 'website';
 }
 
@@ -238,17 +266,24 @@ async function crawlWebsite(startUrl) {
 
   while (queue.length > 0 && pages.length < MAX_PAGES) {
     const url = queue.shift();
+    const remaining = MAX_PAGES - pages.length;
 
-    // After site type is known, skip URLs that would exceed type caps
-    if (siteType && slots) {
+    // Apply soft type caps ONLY when we have plenty of capacity left.
+    // When running low (≤3 remaining), accept any URL regardless of type.
+    if (siteType && slots && remaining > 3) {
       const urlType = detectTypeFromUrl(url);
       const limit = slots[urlType] ?? 0;
-      if (limit === 0 || typeCounts[urlType] >= limit) {
-        // Still crawl if we haven't filled all slots yet (use as fallback 'other')
-        const totalFilled = Object.values(typeCounts).reduce((a, b) => a + b, 0);
-        if (totalFilled >= MAX_PAGES) continue;
-        // Allow if it's an 'other' url and we have remaining capacity
-        if (urlType !== 'other') continue;
+
+      if (limit === 0) {
+        // This type is completely excluded for this site type – skip
+        continue;
+      }
+      if (typeCounts[urlType] >= limit) {
+        // Over cap – skip only if there are still unfilled preferred slots
+        const unfilledSlots = Object.entries(slots).reduce((sum, [t, cap]) =>
+          sum + Math.max(0, cap - (typeCounts[t] || 0)), 0);
+        if (unfilledSlots > 0) continue; // Skip – we expect to find better pages
+        // No preferred slots left but cap reached – let it through as fallback
       }
     }
 
@@ -267,26 +302,23 @@ async function crawlWebsite(startUrl) {
       console.log(`  Site type: ${siteType}`);
     }
 
-    // Double-check cap using actual detected page type
-    if (siteType && slots) {
-      const limit = slots[pageType] ?? 0;
-      if (limit > 0 && typeCounts[pageType] >= limit) {
-        // Over cap for this type – skip
-        continue;
-      }
-    }
-
     typeCounts[pageType] = (typeCounts[pageType] || 0) + 1;
     pages.push(result.data);
 
-    // Sort new links by priority for this site type
+    // Re-sort queue based on detected site type (re-prioritize after each page)
     const newLinks = result.links
       .filter(l => !visited.has(l))
       .sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
 
-    for (const link of newLinks.slice(0, 20)) {
+    for (const link of newLinks.slice(0, 25)) {
       visited.add(link);
+      // Insert into queue respecting priority order
       queue.push(link);
+    }
+
+    // Re-sort the whole queue periodically for accurate priority
+    if (pages.length % 3 === 0 && siteType) {
+      queue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
     }
 
     await new Promise(r => setTimeout(r, 300));

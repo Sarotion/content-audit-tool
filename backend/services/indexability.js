@@ -102,58 +102,122 @@ function checkPageIndexability(page, robotsTxt) {
 }
 
 /**
- * Try to estimate how many pages are indexed via site: search operator.
+ * Parse a number from Czech/English search result counts.
+ * Handles non-breaking spaces (\u00A0), regular spaces, commas, dots.
+ */
+function parseCzechNumber(str) {
+  if (!str) return null;
+  const cleaned = str.replace(/[\u00A0\s,.]/g, '');
+  const n = parseInt(cleaned, 10);
+  return isNaN(n) ? null : n;
+}
+
+/**
+ * Try to estimate indexed pages via site: search operator.
  * Returns { seznam: number|null|'blocked', google: number|null|'blocked' }
  * Best-effort – gracefully degrades if blocked.
  */
 async function checkSearchIndexation(domain) {
   const results = { seznam: null, google: null };
 
-  // Seznam.cz
+  // ── Seznam.cz ─────────────────────────────────────────────────────────────
   try {
     const resp = await axios.get(
-      `https://search.seznam.cz/?q=site%3A${encodeURIComponent(domain)}`,
-      { timeout: TIMEOUT, headers: SEARCH_HEADERS, validateStatus: s => s < 500 }
-    );
-    if (resp.status === 200) {
-      const text = String(resp.data);
-      // Pattern: "Nalezeno 1 234 výsledků" or "1 výsledek" etc.
-      const match = text.match(/([\d\s]+)\s*(výsledků|výsledek|výsledky)/i);
-      if (match) {
-        results.seznam = parseInt(match[1].replace(/\s/g, ''), 10);
-      } else if (/žádné výsledky|nic nenalezeno|nebyl nalezen/i.test(text)) {
-        results.seznam = 0;
+      `https://search.seznam.cz/?q=site:${domain}`,
+      {
+        timeout: TIMEOUT,
+        headers: { ...SEARCH_HEADERS, 'Referer': 'https://seznam.cz/' },
+        validateStatus: s => s < 500,
+        maxRedirects: 3
       }
-    }
-  } catch (err) {
-    console.log('Seznam indexation check failed:', err.message);
-  }
-
-  // Google
-  try {
-    const resp = await axios.get(
-      `https://www.google.com/search?q=site%3A${encodeURIComponent(domain)}&num=10&hl=cs`,
-      { timeout: TIMEOUT, headers: SEARCH_HEADERS, validateStatus: s => s < 500 }
     );
+
     if (resp.status === 200) {
       const text = String(resp.data);
-      if (/captcha|sorry\/index|unusual traffic|detected unusual/i.test(text)) {
-        results.google = 'blocked';
-      } else {
-        const match = text.match(/About ([\d,]+) results/i)
-          || text.match(/Přibližně ([\d\s]+) výsledků/i)
-          || text.match(/([\d\s,]+)\s*výsledků/i);
+      console.log(`  Seznam response: ${resp.status}, length: ${text.length}`);
+
+      // Try multiple patterns – result count appears in various formats
+      const patterns = [
+        /nalezeno\s+(?:přibližně\s+)?([\d\u00A0\s]+)\s*výsledk/i,
+        /([\d][\d\u00A0\s]{0,12})\s*(?:výsledků|výsledek|výsledky)/i,
+        /počet výsledků[:\s]+([\d\u00A0\s]+)/i,
+        /"totalResults"\s*:\s*"?(\d+)"?/i,
+        /"numberOfResults"\s*:\s*(\d+)/i,
+      ];
+
+      let found = false;
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
         if (match) {
-          results.google = parseInt(match[1].replace(/[,\s]/g, ''), 10);
-        } else if (/did not match|neodpovídá|no results/i.test(text)) {
-          results.google = 0;
+          const n = parseCzechNumber(match[1]);
+          if (n !== null) { results.seznam = n; found = true; break; }
+        }
+      }
+
+      if (!found) {
+        if (/žádné výsledky|nic nenalezeno|nebyl nalezen|žádný výsledek|no results/i.test(text)) {
+          results.seznam = 0;
+        } else {
+          // Log snippet for debugging
+          const snippet = text.slice(0, 800).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+          console.log(`  Seznam: no count matched. Snippet: ${snippet.slice(0, 300)}`);
         }
       }
     }
   } catch (err) {
-    console.log('Google indexation check failed:', err.message);
+    console.log(`Seznam check failed: ${err.message}`);
   }
 
+  // ── Google ────────────────────────────────────────────────────────────────
+  try {
+    const resp = await axios.get(
+      `https://www.google.com/search?q=site:${domain}&num=10&hl=cs&gl=cz`,
+      {
+        timeout: TIMEOUT,
+        headers: { ...SEARCH_HEADERS, 'Referer': 'https://www.google.cz/' },
+        validateStatus: s => s < 500,
+        maxRedirects: 2
+      }
+    );
+
+    if (resp.status === 200) {
+      const text = String(resp.data);
+      console.log(`  Google response: ${resp.status}, length: ${text.length}`);
+
+      if (/captcha|sorry\/index|unusual traffic|detected unusual|g-recaptcha/i.test(text)) {
+        results.google = 'blocked';
+        console.log('  Google: blocked by anti-bot protection');
+      } else {
+        const patterns = [
+          /About ([\d,]+) results/i,
+          /Přibližně ([\d\u00A0\s]+) výsledků/i,
+          /"([\d,]+)" results/i,
+          /result-stats[^>]*>[^<]*([\d\u00A0\s,]+)\s*výsledků/i,
+        ];
+        let found = false;
+        for (const pattern of patterns) {
+          const match = text.match(pattern);
+          if (match) {
+            const n = parseCzechNumber(match[1]);
+            if (n !== null) { results.google = n; found = true; break; }
+          }
+        }
+        if (!found) {
+          if (/did not match|neodpovídá žádným/i.test(text)) {
+            results.google = 0;
+          } else {
+            console.log('  Google: no result count found');
+          }
+        }
+      }
+    } else if (resp.status === 429 || resp.status === 503) {
+      results.google = 'blocked';
+    }
+  } catch (err) {
+    console.log(`Google check failed: ${err.message}`);
+  }
+
+  console.log(`  Search indexation: seznam=${results.seznam}, google=${results.google}`);
   return results;
 }
 

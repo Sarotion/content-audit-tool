@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 
 const STEPS = [
-  { id: 'crawl',   label: 'Procházím stránky webu',      duration: 8000 },
-  { id: 'seo',     label: 'Kontroluji SEO základy',       duration: 4000 },
-  { id: 'content', label: 'Analyzuji kvalitu obsahu',     duration: 6000 },
-  { id: 'ai',      label: 'AI hodnotí texty a copy',      duration: 8000 },
-  { id: 'links',   label: 'Hledám broken linky',          duration: 4000 },
-  { id: 'score',   label: 'Sestavuji výsledné skóre',     duration: 3000 },
+  { id: 'detect',  label: 'Zjišťuji typ webu a strukturu',  duration: 5000 },
+  { id: 'crawl',   label: 'Procházím stránky webu (10)',     duration: 10000 },
+  { id: 'seo',     label: 'Kontroluji SEO základy',          duration: 4000 },
+  { id: 'ai',      label: 'AI analyzuje obsah každé stránky',duration: 14000 },
+  { id: 'index',   label: 'Ověřuji indexovatelnost stránek', duration: 5000 },
+  { id: 'score',   label: 'Sestavuji výsledné skóre',        duration: 4000 },
 ]
 
 const TOTAL_DURATION = STEPS.reduce((s, step) => s + step.duration, 0)
@@ -18,17 +18,19 @@ function getTime() {
 }
 
 const LOG_ENTRIES = [
-  { text: 'Fetching robots.txt...', type: 'info',    delay: 400 },
-  { text: 'Analyzing sitemap.xml...', type: 'info',  delay: 1600 },
-  { text: 'Crawling homepage...', type: 'info',      delay: 3000 },
-  { text: 'Internal links mapped.', type: 'success', delay: 5200 },
-  { text: 'Checking title tags & meta descriptions...', type: 'info', delay: 7000 },
-  { text: 'Analyzing H1–H3 heading structure...', type: 'info', delay: 9500 },
-  { text: 'Detecting thin & duplicate content...', type: 'info', delay: 11500 },
-  { text: 'Sending content to AI for analysis...', type: 'info', delay: 13500 },
-  { text: 'Evaluating benefit gap & emotional tone...', type: 'info', delay: 17000 },
-  { text: 'Checking OpenGraph & schema.org...', type: 'info', delay: 20000 },
-  { text: 'Computing final scores...', type: 'info', delay: 25000 },
+  { text: 'Detecting site type (eshop / website)...', type: 'info',    delay: 600 },
+  { text: 'Fetching robots.txt & homepage...', type: 'info',           delay: 2000 },
+  { text: 'Site type identified. Building page queue...', type: 'success', delay: 4500 },
+  { text: 'Crawling pages with smart priority...', type: 'info',       delay: 6000 },
+  { text: 'Pages crawled. Starting SEO checks...', type: 'success',    delay: 13000 },
+  { text: 'Checking title tags & meta descriptions...', type: 'info',  delay: 15000 },
+  { text: 'Analyzing H1–H3 heading structure...', type: 'info',        delay: 17000 },
+  { text: 'Checking OpenGraph & schema.org...', type: 'info',          delay: 19000 },
+  { text: 'Sending all pages to AI for analysis...', type: 'info',     delay: 21000 },
+  { text: 'AI evaluating benefit gap & emotional tone...', type: 'info', delay: 26000 },
+  { text: 'Checking robots.txt, canonical & noindex tags...', type: 'info', delay: 34000 },
+  { text: 'Querying Seznam.cz & Google site: index...', type: 'info',  delay: 36000 },
+  { text: 'Computing final scores...', type: 'info',                   delay: 39000 },
 ]
 
 export default function AuditProgress({ url }) {
@@ -177,7 +179,7 @@ export default function AuditProgress({ url }) {
       </div>
 
       <p className="text-center text-xs text-muted mt-5 italic">
-        Průměrná doba analýzy: 30–60 sekund
+        Průměrná doba analýzy: 45–90 sekund (AI analyzuje všechny stránky)
       </p>
     </div>
   )

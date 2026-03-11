@@ -87,6 +87,35 @@ const CHECK_META = {
   }
 }
 
+// ─── AI section descriptions (shown in Obsah & Copy tab) ─────────────────────
+
+const AI_SECTION_INFO = {
+  firstImpression: {
+    title: 'První dojem',
+    icon: '👁',
+    description: 'Hodnotíme co zákazník pochopí v prvních vteřinách po příchodu na stránku. Jasná odpověď na "Jsem tu správně a co tady dostanu?" je klíčová – většina návštěvníků odejde do 8 sekund.',
+    tip: 'Dobrý první dojem = okamžitě jasné co stránka nabízí, pro koho je, a proč by tu zákazník měl zůstat.'
+  },
+  benefitGap: {
+    title: 'Benefit & Přesvědčivost',
+    icon: '💡',
+    description: 'Odpovídá text na otázku "Proč tady nakoupit/kontaktovat vás, a ne konkurenci?" Chybějící nebo nejasný benefit je nejčastější důvod nízkých konverzí – zákazník není přesvědčen.',
+    tip: 'Zákazníci nekupují produkty – kupují řešení problémů. Text by měl jasně říkat jaký problém řešíte a proč zrovna vy, ne jen "Jsme profesionální firma s dlouholetou zkušeností".'
+  },
+  emotionalTone: {
+    title: 'Tón & Styl textu',
+    icon: '🎯',
+    description: 'Hodnotíme zda tón textu sedí k vašemu zákazníkovi a buduje důvěru. Příliš technický nebo byrokratický text odráží běžné zákazníky. Přehnaně prodejní tón zase ruší důvěryhodnost.',
+    tip: 'Ideální tón je přátelský, konkrétní a zaměřený na zákazníka – jako by vám radil kamarád-odborník. Vyhněte se frázím jako "komplexní řešení na klíč" nebo "leader na trhu".'
+  },
+  contentQuality: {
+    title: 'Kvalita obsahu',
+    icon: '📊',
+    description: 'AI hodnotí hloubku, unikátnost a relevanci obsahu. Generický obsah (kopie textu od výrobce, prázdné fráze, krátké popisky) Google postupně penalizuje a zákazníky nepřesvědčí.',
+    tip: 'Nejlepší obsah odpovídá na skutečné otázky zákazníků, používá konkrétní čísla a příklady, a odlišuje se od konkurence. Pište pro lidi, ne pro Google.'
+  }
+}
+
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 function DotIndicator({ value, max = 3, colorFilled = '#B72C6A' }) {
@@ -152,21 +181,30 @@ function Tooltip({ text, children }) {
 
 // ─── AI section card (used in pages tab) ─────────────────────────────────────
 
-function AISectionCard({ title, icon, data, accentColor = 'text-accent' }) {
+function AISectionCard({ sectionKey, data }) {
+  const [showInfo, setShowInfo] = useState(false)
   if (!data) return null
+
+  const info = AI_SECTION_INFO[sectionKey] || {}
   const hasIssues = data.issues?.length > 0
   const hasPassed = data.passed?.length > 0
   const hasQuickWin = data.quickWin && data.quickWin.length > 10
 
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden">
+      {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 bg-surface border-b border-border">
         <div className="flex items-center gap-2">
-          <span className="text-sm">{icon}</span>
-          <span className="text-xs font-700 text-text-primary">{title}</span>
+          <span className="text-sm">{info.icon || '📋'}</span>
+          <span className="text-xs font-700 text-text-primary">{info.title || sectionKey}</span>
           {data.tone && (
             <span className="text-xs text-muted bg-white border border-border px-2 py-0.5 rounded-full">{data.tone}</span>
           )}
+          <button
+            onClick={() => setShowInfo(v => !v)}
+            className="text-muted hover:text-text-secondary text-xs ml-0.5"
+            title="Co tato oblast hodnotí?"
+          >ⓘ</button>
         </div>
         <div className="flex items-center gap-2">
           {data.score != null && (
@@ -176,13 +214,31 @@ function AISectionCard({ title, icon, data, accentColor = 'text-accent' }) {
         </div>
       </div>
 
+      {/* Expandable info box */}
+      {showInfo && info.description && (
+        <div className="px-3 py-2.5 bg-blue-50 border-b border-blue-100">
+          <p className="text-xs text-blue-800 leading-relaxed mb-1.5">{info.description}</p>
+          {info.tip && (
+            <p className="text-xs text-blue-600">
+              <span className="font-700">💡 Tip: </span>{info.tip}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="px-3 py-2.5 space-y-2">
+        {/* AI headline + summary */}
+        {data.headline && (
+          <p className="text-xs font-700 text-text-primary">{data.headline}</p>
+        )}
         {data.summary && (
           <p className="text-xs text-text-secondary leading-relaxed">{data.summary}</p>
         )}
 
+        {/* Issues */}
         {hasIssues && (
           <div className="space-y-1">
+            <div className="text-xs font-600 text-red-600 uppercase tracking-wide mt-1">Co je špatně:</div>
             {data.issues.map((issue, i) => (
               <div key={i} className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5">
                 <span className="shrink-0 mt-0.5">⚠</span>
@@ -192,8 +248,10 @@ function AISectionCard({ title, icon, data, accentColor = 'text-accent' }) {
           </div>
         )}
 
+        {/* Passed */}
         {hasPassed && (
           <div className="space-y-1">
+            <div className="text-xs font-600 text-green-700 uppercase tracking-wide mt-1">Co funguje:</div>
             {data.passed.map((p, i) => (
               <div key={i} className="flex items-start gap-1.5 text-xs text-green-700 bg-green-50 rounded-lg px-2.5 py-1.5">
                 <span className="shrink-0 mt-0.5">✓</span>
@@ -203,11 +261,12 @@ function AISectionCard({ title, icon, data, accentColor = 'text-accent' }) {
           </div>
         )}
 
+        {/* Quick win */}
         {hasQuickWin && (
           <div className="flex items-start gap-2 bg-accent-light border border-accent/20 rounded-lg px-3 py-2 mt-2">
             <span className="text-accent text-xs shrink-0 mt-0.5">⚡</span>
             <div>
-              <span className="text-xs font-700 text-accent uppercase tracking-wide">Quick win: </span>
+              <span className="text-xs font-700 text-accent uppercase tracking-wide">Co udělat: </span>
               <span className="text-xs text-text-secondary">{data.quickWin}</span>
             </div>
           </div>
@@ -332,26 +391,10 @@ function PageDetail({ page }) {
               <div className="space-y-2.5">
                 {page.aiAnalysis ? (
                   <>
-                    <AISectionCard
-                      title="První dojem"
-                      icon="👁"
-                      data={page.aiAnalysis.firstImpression}
-                    />
-                    <AISectionCard
-                      title="Benefit & Přesvědčivost"
-                      icon="💡"
-                      data={page.aiAnalysis.benefitGap}
-                    />
-                    <AISectionCard
-                      title="Tón textu"
-                      icon="🎯"
-                      data={page.aiAnalysis.emotionalTone}
-                    />
-                    <AISectionCard
-                      title="Kvalita obsahu"
-                      icon="📊"
-                      data={page.aiAnalysis.contentQuality}
-                    />
+                    <AISectionCard sectionKey="firstImpression" data={page.aiAnalysis.firstImpression} />
+                    <AISectionCard sectionKey="benefitGap"      data={page.aiAnalysis.benefitGap} />
+                    <AISectionCard sectionKey="emotionalTone"   data={page.aiAnalysis.emotionalTone} />
+                    <AISectionCard sectionKey="contentQuality"  data={page.aiAnalysis.contentQuality} />
                   </>
                 ) : (
                   <div className="text-center py-8 text-muted text-sm">
@@ -994,20 +1037,20 @@ export default function Results({ auditData, onRestart, contact }) {
                 <div className="rounded-xl p-4 border border-border bg-surface">
                   <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Seznam.cz index</div>
                   <div className="text-2xl font-display font-700 text-text-primary">
-                    {searchIdx.seznam === 'blocked' ? '—' : searchIdx.seznam != null ? searchIdx.seznam.toLocaleString('cs') : '?'}
+                    {searchIdx.seznam === 'blocked' ? '—' : searchIdx.seznam != null ? searchIdx.seznam.toLocaleString('cs-CZ') : '—'}
                   </div>
                   <div className="text-xs text-muted mt-1">
-                    {searchIdx.seznam === 'blocked' ? 'nelze ověřit' : searchIdx.seznam != null ? 'stránek v indexu' : 'načítám…'}
+                    {searchIdx.seznam === 'blocked' ? 'nelze ověřit (anti-bot)' : searchIdx.seznam != null ? 'stránek v indexu (odhad)' : 'nelze ověřit'}
                   </div>
                 </div>
 
                 <div className="rounded-xl p-4 border border-border bg-surface">
                   <div className="text-xs font-700 uppercase tracking-wide text-muted mb-1">Google index</div>
                   <div className="text-2xl font-display font-700 text-text-primary">
-                    {searchIdx.google === 'blocked' ? '—' : searchIdx.google != null ? searchIdx.google.toLocaleString('cs') : '?'}
+                    {searchIdx.google === 'blocked' ? '—' : searchIdx.google != null ? searchIdx.google.toLocaleString('cs-CZ') : '—'}
                   </div>
                   <div className="text-xs text-muted mt-1">
-                    {searchIdx.google === 'blocked' ? 'anti-bot ochrana' : searchIdx.google != null ? 'stránek v indexu' : 'načítám…'}
+                    {searchIdx.google === 'blocked' ? 'blokováno (anti-bot)' : searchIdx.google != null ? 'stránek v indexu (odhad)' : 'nelze ověřit'}
                   </div>
                 </div>
               </div>
