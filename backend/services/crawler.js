@@ -61,7 +61,7 @@ function detectTypeFromUrl(url) {
   if (/\/(produkt|product|zbozi|item|products?\/)/.test(u)) return 'product';
   if (/\/(kategori|category|vypis|collection|collections?\/)/.test(u)) return 'category';
   if (/\/product-category\//.test(u)) return 'category';
-  if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 'blog';
+  if (/\/(blog|clanek|clanky|prispevk|article|novinky|aktualit)/.test(u)) return 'blog';
   if (/\/(o-nas|o-firme|about|o-spolecnosti|kdo-jsme)/.test(u)) return 'about';
   if (/\/(kontakt|contact)/.test(u)) return 'contact';
   if (/\/(sluzby|services|nabidka|reseni|cenik|pricing|co-delame)/.test(u)) return 'service';
@@ -95,7 +95,7 @@ function detectPageType(url, $) {
   if (/\/(produkt|product|zbozi|item|products?\/)/.test(u)) return 'product';
   if (/\/(kategori|category|vypis|collection|collections?\/)/.test(u)) return 'category';
   if (/\/product-category\//.test(u)) return 'category';
-  if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 'blog';
+  if (/\/(blog|clanek|clanky|prispevk|article|novinky|aktualit)/.test(u)) return 'blog';
   if (/\/(o-nas|o-firme|about|o-spolecnosti|kdo-jsme)/.test(u)) return 'about';
   if (/\/(kontakt|contact)/.test(u)) return 'contact';
   if (/\/(sluzby|services|nabidka|reseni|cenik|pricing)/.test(u)) return 'service';
@@ -306,7 +306,7 @@ const SLOTS = {
  * @param {object}  hintPatterns    - { category?, product?, blog? } regex strings
  * @param {Set}     [fromCategoryUrls] - links discovered on a DOM-detected category page
  */
-function urlPriorityForType(url, siteType, hintPatterns, fromCategoryUrls = null) {
+function urlPriorityForType(url, siteType, hintPatterns, fromCategoryUrls = null, navLinksFromHomepage = null) {
   // Hint patterns take highest precedence
   const hintType = detectTypeFromHint(url, hintPatterns);
   if (hintType === 'product')  return 10;
@@ -315,6 +315,11 @@ function urlPriorityForType(url, siteType, hintPatterns, fromCategoryUrls = null
 
   // Links found on an already-crawled category page → likely products or sub-categories
   if (siteType === 'eshop' && fromCategoryUrls && fromCategoryUrls.has(url)) return 8;
+
+  // Nav/header links from homepage on an e-shop are very likely product categories.
+  // Priority 7 ensures they're crawled before unknown plain-slug pages (priority 1),
+  // so their outbound product links can populate fromCategoryUrls early.
+  if (siteType === 'eshop' && navLinksFromHomepage && navLinksFromHomepage.has(url)) return 7;
 
   const u = url.toLowerCase();
   if (siteType === 'eshop') {
@@ -325,7 +330,7 @@ function urlPriorityForType(url, siteType, hintPatterns, fromCategoryUrls = null
     if (/\/(produkt|product|zbozi|item|products?\/)/.test(u)) return 10;
     if (/\/(kategori|category|vypis|collection|collections?\/)/.test(u)) return 9;
     if (/\/product-category\//.test(u)) return 9;
-    if (/\/(blog|clanek|article|novinky|aktualit)/.test(u)) return 5;
+    if (/\/(blog|clanek|clanky|prispevk|article|novinky|aktualit)/.test(u)) return 5;
     if (/\/(o-nas|o-firme|about|kontakt|contact)/.test(u)) return 3;
     return 1;
   } else {
@@ -497,6 +502,12 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
   // other→spill redirect and get crawled directly from the primary queue.
   const fromCategoryUrls = new Set();
 
+  // Nav/header links extracted from the homepage.
+  // On e-shops, main navigation almost always points to product categories.
+  // Priority 7 ensures they're crawled before anonymous plain-slug pages (priority 1),
+  // so their product links can populate fromCategoryUrls early in the crawl.
+  const navLinksFromHomepage = new Set();
+
   // Pre-seed queue with hint URLs (known valid pages of specific types).
   // Crawling them early ensures their outbound links (e.g. products on a category page)
   // fill the discovery queue and we reach MAX_PAGES.
@@ -586,6 +597,23 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       siteType = detectSiteType(result.data, result.$);
       slots = SLOTS[siteType];
       console.log(`  Site type: ${siteType}`);
+
+      // For e-shops: extract nav/header links from homepage — on Shoptet and similar
+      // platforms the main navigation almost exclusively contains product category links.
+      // These get priority 7 so they're crawled before plain-slug unknowns (priority 1),
+      // ensuring fromCategoryUrls is populated early and products are discovered quickly.
+      if (siteType === 'eshop') {
+        const origin = new URL(base).origin;
+        result.$('nav a[href], header a[href], [class*="navigation"] a[href], [class*="nav-bar"] a[href], .main-menu a[href], #main-menu a[href]').each((_, el) => {
+          try {
+            const href = result.$(el).attr('href');
+            if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+            const full = new URL(href, url).href.split('#')[0].split('?')[0].replace(/\/$/, '');
+            if (full.startsWith(origin) && full !== base) navLinksFromHomepage.add(full);
+          } catch {}
+        });
+        console.log(`  Nav links from homepage: ${navLinksFromHomepage.size}`);
+      }
     }
 
     typeCounts[pageType] = (typeCounts[pageType] || 0) + 1;
@@ -621,8 +649,8 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       console.log(`  Site type re-evaluated → eshop (found product/category page types after ${pages.length} pages)`);
     }
     if (reEvaluated) {
-      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
-      spillQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls, navLinksFromHomepage) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls, navLinksFromHomepage));
+      spillQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls, navLinksFromHomepage) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls, navLinksFromHomepage));
     }
 
     // Add newly discovered links and ALWAYS re-sort the entire primary queue.
@@ -637,9 +665,9 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
     }
 
     // Full sort after every page crawled – ensures fromCategoryUrls items (prio 8)
-    // float above about/contact (prio 3) and boring pages (prio 1) immediately.
+    // and navLinksFromHomepage items (prio 7) float above plain pages (prio 1).
     if (siteType) {
-      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls, navLinksFromHomepage) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls, navLinksFromHomepage));
     }
 
     if (CRAWL_DELAY_MS > 0) await new Promise(r => setTimeout(r, CRAWL_DELAY_MS));

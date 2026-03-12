@@ -168,7 +168,7 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
 
   try {
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5',
       max_tokens: 1400,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -182,7 +182,7 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
       await new Promise(r => setTimeout(r, 10000));
       try {
         const response2 = await client.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-haiku-4-5',
           max_tokens: 1400,
           messages: [{ role: 'user', content: prompt }]
         });
