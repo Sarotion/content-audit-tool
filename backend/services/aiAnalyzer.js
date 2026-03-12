@@ -1,6 +1,8 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const apiKey = process.env.ANTHROPIC_API_KEY;
+console.log(`[aiAnalyzer] ANTHROPIC_API_KEY: ${apiKey ? `set (starts with ${apiKey.slice(0, 10)}...)` : 'NOT SET ⚠️'}`);
+const client = new Anthropic({ apiKey });
 
 /**
  * AI analysis for a single page using Claude
@@ -79,7 +81,7 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
     const clean = text.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(clean);
   } catch (err) {
-    console.error('AI page analysis failed:', err.message);
+    console.error('AI page analysis failed:', err.message, err.status, err.error);
     return getDefaultAIResults();
   }
 }
@@ -153,7 +155,7 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
     const clean = text.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(clean);
   } catch (err) {
-    console.error('Site-wide AI analysis failed:', err.message);
+    console.error('Site-wide AI analysis failed:', err.message, err.status, err.error);
     return {
       siteWideIssues: [],
       keywordCannibalization: [],

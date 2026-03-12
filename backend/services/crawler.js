@@ -3,7 +3,7 @@ const cheerio = require('cheerio');
 const https = require('https');
 
 const CRAWL_TIMEOUT = 8000;
-const MAX_PAGES = 10;
+const MAX_PAGES = 15;
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; ContentAuditBot/1.0; +https://contentaudit.tool)',
