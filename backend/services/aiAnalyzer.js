@@ -113,7 +113,7 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
  * Site-wide AI analysis – holistic view across all crawled pages.
  * Designed for a non-technical e-shop or website owner.
  */
-async function analyzeSiteWide(pages, siteType = 'eshop') {
+async function analyzeSiteWide(pages, siteType = 'eshop', retries = 1) {
   const siteContext = siteType === 'eshop' ? 'e-shopu' : 'firemního webu';
   const ownerContext = siteType === 'eshop'
     ? 'majitel e-shopu (zajímají ho tržby, konverze, zákazníci)'
@@ -179,7 +179,11 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
     if (!parsed) throw new Error('Failed to parse site-wide AI response as JSON');
     return parsed;
   } catch (err) {
-    // No retry for site-wide — return defaults to avoid Railway 60 s proxy timeout
+    if (err.status === 429 && retries > 0) {
+      console.warn('[AI] Site-wide rate limited, waiting 2s...');
+      await new Promise(r => setTimeout(r, 2000));
+      return analyzeSiteWide(pages, siteType, retries - 1);
+    }
     console.warn('[AI] Site-wide analysis failed:', err.message, 'status:', err.status);
     return {
       siteWideIssues: [],
