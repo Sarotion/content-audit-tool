@@ -346,7 +346,7 @@ async function fetchPage(url) {
 
 // ─── Main crawl ────────────────────────────────────────────────────────────────
 
-async function crawlWebsite(startUrl, hintPatterns = null) {
+async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
   const base = normalizeUrl(startUrl).replace(/\/$/, ''); // Always strip trailing slash
   const visited = new Set([base]);
 
@@ -358,6 +358,18 @@ async function crawlWebsite(startUrl, hintPatterns = null) {
   const primaryQueue = [base];
   const spillQueue = [];
   const pages = [];
+
+  // Pre-seed queue with hint URLs (known valid pages of specific types).
+  // Crawling them early ensures their outbound links (e.g. products on a category page)
+  // fill the discovery queue and we reach MAX_PAGES.
+  for (const hintUrl of hintUrls) {
+    if (!hintUrl) continue;
+    const normalized = hintUrl.trim().replace(/\/$/, '');
+    if (normalized && !visited.has(normalized)) {
+      visited.add(normalized);
+      primaryQueue.push(normalized);
+    }
+  }
 
   let siteType = null;
   let slots = null;
@@ -456,7 +468,7 @@ async function crawlWebsite(startUrl, hintPatterns = null) {
       .filter(l => !visited.has(l))
       .sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
 
-    for (const link of newLinks.slice(0, 25)) {
+    for (const link of newLinks.slice(0, 40)) {
       visited.add(link);
       primaryQueue.push(link);
     }

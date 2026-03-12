@@ -55,7 +55,8 @@ router.post('/', async (req, res) => {
     }
 
     // 2. Crawl website (returns pages + siteType)
-    const { pages, siteType } = await crawlWebsite(normalizedUrl, hintPatterns);
+    const hintUrls = [hintCategory, hintProduct, hintBlog].filter(Boolean);
+    const { pages, siteType } = await crawlWebsite(normalizedUrl, hintPatterns, hintUrls);
 
     if (pages.length === 0) {
       return res.status(422).json({ error: 'Web se nepodařilo načíst. Zkontrolujte URL nebo zkuste znovu.' });
