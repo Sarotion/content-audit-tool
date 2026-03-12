@@ -25,6 +25,24 @@ function normalizeUrl(url) {
 /**
  * Detect page type from URL pattern only (fast, no HTTP fetch)
  */
+/**
+ * Check if a URL matches a user-provided hint pattern.
+ * hintPatterns: { category?, product?, blog? } – regex strings from patternStore.
+ * Returns the matched type string or null.
+ */
+function detectTypeFromHint(url, hintPatterns) {
+  if (!hintPatterns) return null;
+  const u = url.toLowerCase();
+  try {
+    if (hintPatterns.product  && new RegExp(hintPatterns.product).test(u))  return 'product';
+    if (hintPatterns.category && new RegExp(hintPatterns.category).test(u)) return 'category';
+    if (hintPatterns.blog     && new RegExp(hintPatterns.blog).test(u))     return 'blog';
+  } catch (err) {
+    console.error('[crawler] Invalid hint pattern:', err.message);
+  }
+  return null;
+}
+
 function detectTypeFromUrl(url) {
   const u = url.toLowerCase();
   try {
@@ -183,7 +201,13 @@ const SLOTS = {
  * URL priority score for queue ordering (higher = crawled sooner).
  * E-shop order: products → categories → blog → about/contact → other
  */
-function urlPriorityForType(url, siteType) {
+function urlPriorityForType(url, siteType, hintPatterns) {
+  // Hint patterns take highest precedence
+  const hintType = detectTypeFromHint(url, hintPatterns);
+  if (hintType === 'product')  return 10;
+  if (hintType === 'category') return 9;
+  if (hintType === 'blog')     return 5;
+
   const u = url.toLowerCase();
   if (siteType === 'eshop') {
     // Shoptet: _z{id} = product, _k{id} = category
@@ -322,7 +346,7 @@ async function fetchPage(url) {
 
 // ─── Main crawl ────────────────────────────────────────────────────────────────
 
-async function crawlWebsite(startUrl) {
+async function crawlWebsite(startUrl, hintPatterns = null) {
   const base = normalizeUrl(startUrl).replace(/\/$/, ''); // Always strip trailing slash
   const visited = new Set([base]);
 
@@ -357,7 +381,7 @@ async function crawlWebsite(startUrl) {
 
     // ── Type cap enforcement ──────────────────────────────────────────────────
     if (siteType && slots && remaining > 3) {
-      const urlType = detectTypeFromUrl(url);
+      const urlType = detectTypeFromHint(url, hintPatterns) || detectTypeFromUrl(url);
       const limit = slots[urlType] ?? 0;
 
       if (!fromSpill) {
@@ -408,7 +432,9 @@ async function crawlWebsite(startUrl) {
     let reEvaluated = false;
     if (pages.length === 1 && siteType === 'website') {
       const eshopPatternLinks = result.links.filter(l =>
-        /\/(produkt|product|zbozi|item|p\/|katalog|kategori|category|collection|vypis|obchod)/i.test(l)
+        /\/(produkt|product|zbozi|item|p\/|katalog|kategori|category|collection|vypis|obchod)/i.test(l) ||
+        detectTypeFromHint(l, hintPatterns) === 'product' ||
+        detectTypeFromHint(l, hintPatterns) === 'category'
       ).length;
       if (eshopPatternLinks >= 4) {
         siteType = 'eshop'; slots = SLOTS[siteType]; reEvaluated = true;
@@ -421,14 +447,14 @@ async function crawlWebsite(startUrl) {
       console.log(`  Site type re-evaluated → eshop (found product/category page types after ${pages.length} pages)`);
     }
     if (reEvaluated) {
-      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
-      spillQueue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
+      spillQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
     }
 
     // Add newly discovered links to the primary queue (sorted by priority)
     const newLinks = result.links
       .filter(l => !visited.has(l))
-      .sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+      .sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
 
     for (const link of newLinks.slice(0, 25)) {
       visited.add(link);
@@ -437,7 +463,7 @@ async function crawlWebsite(startUrl) {
 
     // Periodically re-sort the primary queue for accurate priority
     if (pages.length % 3 === 0 && siteType) {
-      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType) - urlPriorityForType(a, siteType));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
     }
 
     await new Promise(r => setTimeout(r, 300));

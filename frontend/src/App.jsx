@@ -25,7 +25,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const [contact, setContact] = useState(null)
 
-  async function startAudit(inputUrl) {
+  async function startAudit({ url: inputUrl, hintCategory, hintProduct, hintBlog }) {
     setUrl(inputUrl)
     setError(null)
     setStep('loading')
@@ -34,7 +34,7 @@ export default function App() {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/audit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: inputUrl })
+        body: JSON.stringify({ url: inputUrl, hintCategory, hintProduct, hintBlog })
       })
 
       const data = await response.json()

@@ -4,6 +4,7 @@ const { crawlWebsite, normalizeUrl } = require('../services/crawler');
 const { analyzePageRules, checkDuplicates, calculatePageScore } = require('../services/analyzer');
 const { analyzePageWithAI, analyzeSiteWide } = require('../services/aiAnalyzer');
 const { auditIndexability } = require('../services/indexability');
+const { savePatterns, getPatterns, buildPatterns } = require('../services/patternStore');
 
 /**
  * POST /api/audit
@@ -11,7 +12,7 @@ const { auditIndexability } = require('../services/indexability');
  * Returns: full audit results (pages + scores)
  */
 router.post('/', async (req, res) => {
-  const { url } = req.body;
+  const { url, hintCategory, hintProduct, hintBlog } = req.body;
 
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'URL je povinná' });
@@ -33,8 +34,28 @@ router.post('/', async (req, res) => {
     console.log(`\n🔍 Starting audit for: ${normalizedUrl}`);
     const startTime = Date.now();
 
-    // 1. Crawl website (returns pages + siteType)
-    const { pages, siteType } = await crawlWebsite(normalizedUrl);
+    // 1. Build hint patterns (user-provided example URLs → regex patterns)
+    const hints = { category: hintCategory, product: hintProduct, blog: hintBlog };
+    const hasHints = hintCategory || hintProduct || hintBlog;
+
+    // Load stored patterns for this domain (from previous audits)
+    const storedPatterns = getPatterns(normalizedUrl);
+
+    // Build from user hints (overrides stored if provided)
+    const builtPatterns = hasHints ? buildPatterns(hints) : null;
+    const hintPatterns = builtPatterns || storedPatterns;
+
+    if (hasHints) {
+      // Save for future automatic detection
+      savePatterns(normalizedUrl, hints);
+    }
+
+    if (hintPatterns) {
+      console.log(`  Using URL patterns:`, hintPatterns);
+    }
+
+    // 2. Crawl website (returns pages + siteType)
+    const { pages, siteType } = await crawlWebsite(normalizedUrl, hintPatterns);
 
     if (pages.length === 0) {
       return res.status(422).json({ error: 'Web se nepodařilo načíst. Zkontrolujte URL nebo zkuste znovu.' });

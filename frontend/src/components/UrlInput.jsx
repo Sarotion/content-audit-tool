@@ -67,14 +67,41 @@ const FEATURES = [
   },
 ]
 
+function HintField({ label, placeholder, value, onChange }) {
+  return (
+    <div>
+      <label className="block text-xs font-600 text-muted mb-1">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-mono text-text-primary placeholder-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all"
+        autoComplete="off"
+        spellCheck={false}
+      />
+    </div>
+  )
+}
+
 export default function UrlInput({ onSubmit, error }) {
   const [url, setUrl] = useState('')
   const [focused, setFocused] = useState(false)
+  const [showHints, setShowHints] = useState(false)
+  const [hintCategory, setHintCategory] = useState('')
+  const [hintProduct, setHintProduct] = useState('')
+  const [hintBlog, setHintBlog] = useState('')
 
   function handleSubmit(e) {
     e.preventDefault()
-    if (url.trim()) onSubmit(url.trim())
+    if (url.trim()) onSubmit({
+      url: url.trim(),
+      hintCategory: hintCategory.trim() || null,
+      hintProduct: hintProduct.trim() || null,
+      hintBlog: hintBlog.trim() || null,
+    })
   }
+
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-14 md:py-20">
@@ -142,6 +169,54 @@ export default function UrlInput({ onSubmit, error }) {
               {error}
             </div>
           )}
+
+          {/* Optional hint URLs for e-shop */}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setShowHints(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-muted hover:text-text-secondary transition-colors duration-150 group"
+            >
+              <svg
+                width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"
+                viewBox="0 0 24 24"
+                className={`transition-transform duration-200 ${showHints ? 'rotate-90' : ''}`}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+              <span className="group-hover:underline underline-offset-2">Zpřesnit audit e-shopu (volitelné)</span>
+            </button>
+
+            {showHints && (
+              <div className="mt-3 rounded-xl border border-border bg-surface p-4 space-y-3">
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  Pro přesnější výsledky uveďte příklady klíčových stránek vašeho e-shopu.
+                  Systém z nich pozná strukturu URL a zahrne do auditu správné typy stránek —
+                  kategorie, produkty i blog — namísto náhodných výsledků.
+                </p>
+                <div className="space-y-2">
+                  <HintField
+                    label="Příklad URL kategorie"
+                    placeholder="https://vas-eshop.cz/kategorie/nazev/"
+                    value={hintCategory}
+                    onChange={setHintCategory}
+                  />
+                  <HintField
+                    label="Příklad URL produktu"
+                    placeholder="https://vas-eshop.cz/produkt/nazev-produktu/"
+                    value={hintProduct}
+                    onChange={setHintProduct}
+                  />
+                  <HintField
+                    label="Příklad URL blogového článku"
+                    placeholder="https://vas-eshop.cz/blog/nazev-clanku/"
+                    value={hintBlog}
+                    onChange={setHintBlog}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </form>
       </div>
 
