@@ -2,13 +2,18 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const https = require('https');
 
-const CRAWL_TIMEOUT = 4000;   // per-page fetch timeout (ms) — was 8000
-const MAX_PAGES = 20;         // was 15 — extra pages allow deeper crawl (3-level eshops)
-const CRAWL_DELAY_MS = 100;   // delay between pages (ms) — was 300
+const CRAWL_TIMEOUT = 4000;   // per-page fetch timeout (ms)
+const CRAWL_DELAY_MS = 100;   // delay between pages (ms)
+
+// Strict per-siteType page caps (set dynamically in crawlWebsite after detection).
+//   eshop:   1 homepage + 3 products + 3 categories + 2 blog + 3 mix = 12
+//   website: 1 homepage + 3 services + 2 blog + 1 about + 1 contact + 2 mix = 10
+const MAX_PAGES_ESHOP   = 12;
+const MAX_PAGES_WEBSITE = 10;
+
 // Wall-clock budget for the entire crawl phase. Stops crawling once this threshold
 // is reached so AI analysis can start well before Railway's 60 s proxy timeout.
-// Budget = 30 s leaves ~30 s for AI phase (Haiku page analysis ≈ 10–15 s with
-// 2 s 429-retry, site-wide Haiku ≈ 3–5 s — both run concurrently via Promise.all).
+// With 12 pages max and 4 s per-page timeout the worst case is ~12×1.5 s = 18 s.
 const CRAWL_WALL_BUDGET_MS = 30000;
 
 const HEADERS = {
@@ -291,11 +296,14 @@ function detectSiteType(pageData, $) {
 /**
  * Page type slots per site type (max pages of each type to include)
  */
+// Slots define the maximum number of pages of each type to include.
+// Sums match the strict per-siteType page caps:
+//   eshop   = 1+3+3+2+1+1+0+1 = 12  (matches MAX_PAGES_ESHOP)
+//   website = 1+3+2+1+1+0+0+2 = 10  (matches MAX_PAGES_WEBSITE)
+// "other" slot absorbs any fill pages when preferred types are unavailable.
 const SLOTS = {
-  // For e-shops: allow up to 8 "other" URL-type pages so plain-slug sites (Shoptet without
-  // _k/_z suffixes, etc.) can be crawled. DOM detection re-classifies them correctly.
-  eshop: { homepage: 1, product: 5, category: 4, blog: 2, about: 1, contact: 1, service: 0, other: 8 },
-  website: { homepage: 1, service: 4, blog: 2, about: 1, contact: 1, product: 0, category: 0, other: 2 }
+  eshop:   { homepage: 1, product: 3, category: 3, blog: 2, about: 1, contact: 1, service: 0, other: 1 },
+  website: { homepage: 1, service: 3, blog: 2, about: 1, contact: 1, product: 0, category: 0, other: 2 }
 };
 
 /**
@@ -523,12 +531,15 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
 
   let siteType = null;
   let slots = null;
+  // maxPages is set after siteType detection (eshop=12, website=10).
+  // Default to eshop cap until the homepage is crawled and siteType is known.
+  let maxPages = MAX_PAGES_ESHOP;
   const typeCounts = { homepage: 0, product: 0, category: 0, blog: 0, about: 0, contact: 0, service: 0, other: 0 };
   const crawlStart = Date.now();
 
   console.log(`🕷️  Starting crawl: ${base}`);
 
-  while (pages.length < MAX_PAGES) {
+  while (pages.length < maxPages) {
     // Respect wall-clock crawl budget so AI analysis can start before Railway's
     // proxy timeout closes the connection. Always crawl at least the 1st page.
     if (pages.length > 0 && (Date.now() - crawlStart) >= CRAWL_WALL_BUDGET_MS) {
@@ -547,7 +558,7 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       break; // Nothing left to crawl
     }
 
-    const remaining = MAX_PAGES - pages.length;
+    const remaining = maxPages - pages.length;
 
     // ── Type cap enforcement ──────────────────────────────────────────────────
     if (siteType && slots && remaining > 3) {
@@ -597,7 +608,8 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
     if (pages.length === 0) {
       siteType = detectSiteType(result.data, result.$);
       slots = SLOTS[siteType];
-      console.log(`  Site type: ${siteType}`);
+      maxPages = siteType === 'website' ? MAX_PAGES_WEBSITE : MAX_PAGES_ESHOP;
+      console.log(`  Site type: ${siteType} → maxPages: ${maxPages}`);
 
       // For e-shops: extract nav/header links from homepage — on Shoptet and similar
       // platforms the main navigation almost exclusively contains product category links.
@@ -640,13 +652,13 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
         detectTypeFromHint(l, hintPatterns) === 'category'
       ).length;
       if (eshopPatternLinks >= 4) {
-        siteType = 'eshop'; slots = SLOTS[siteType]; reEvaluated = true;
+        siteType = 'eshop'; slots = SLOTS[siteType]; maxPages = MAX_PAGES_ESHOP; reEvaluated = true;
         console.log(`  Site type re-evaluated → eshop (${eshopPatternLinks} e-shop URL patterns in homepage links)`);
       }
     }
     if (!reEvaluated && siteType === 'website' &&
         ((typeCounts.product || 0) >= 1 || (typeCounts.category || 0) >= 1)) {
-      siteType = 'eshop'; slots = SLOTS[siteType]; reEvaluated = true;
+      siteType = 'eshop'; slots = SLOTS[siteType]; maxPages = MAX_PAGES_ESHOP; reEvaluated = true;
       console.log(`  Site type re-evaluated → eshop (found product/category page types after ${pages.length} pages)`);
     }
     if (reEvaluated) {
