@@ -5,10 +5,11 @@ const https = require('https');
 const CRAWL_TIMEOUT = 4000;   // per-page fetch timeout (ms) — was 8000
 const MAX_PAGES = 15;
 const CRAWL_DELAY_MS = 100;   // delay between pages (ms) — was 300
-// Wall-clock budget for the entire crawl phase. Stops adding new pages once
-// this threshold is reached, so AI analysis can start before Railway's proxy
-// closes the connection (Railway timeout ≈ 60 s, budget = 40 s leaves ~20 s for AI).
-const CRAWL_WALL_BUDGET_MS = 40000;
+// Wall-clock budget for the entire crawl phase. Stops crawling once this threshold
+// is reached so AI analysis can start well before Railway's 60 s proxy timeout.
+// Budget = 25 s leaves ~35 s for AI phase (Haiku page analysis ≈ 10–12 s,
+// site-wide Haiku ≈ 3–5 s — both run concurrently via Promise.all).
+const CRAWL_WALL_BUDGET_MS = 25000;
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; ContentAuditBot/1.0; +https://contentaudit.tool)',

@@ -83,7 +83,7 @@ router.post('/', async (req, res) => {
       const results = [];
       const AI_BATCH = 3;
       for (let i = 0; i < pages.length; i += AI_BATCH) {
-        if (i > 0) await new Promise(r => setTimeout(r, 500)); // reduced from 1500 ms
+        if (i > 0) await new Promise(r => setTimeout(r, 200)); // reduced from 500 ms
         const batch = pages.slice(i, i + AI_BATCH);
         const batchResults = await Promise.all(batch.map(p => analyzePageWithAI(p, siteType)));
         results.push(...batchResults);
