@@ -56,7 +56,7 @@ app.get('/health', (req, res) => res.json({
   status: 'ok',
   timestamp: new Date().toISOString(),
   version: process.env.BUILD_VERSION || 'dev',
-  build: '2026-03-12-I'
+  build: '2026-03-12-J'
 }));
 
 const PORT = process.env.PORT || 3001;
