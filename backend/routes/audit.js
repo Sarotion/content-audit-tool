@@ -71,27 +71,36 @@ router.post('/', async (req, res) => {
     // 3. Duplicate content detection (kept for internal use / PDF)
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
-    // 4. AI analysis – batched (3 at a time) to avoid Anthropic concurrent connection limit.
-    // 1.5s inter-batch delay reduces 429 rate-limit errors on successive batches.
-    const aiResults = [];
-    const AI_BATCH = 3;
-    for (let i = 0; i < analyzedPages.length; i += AI_BATCH) {
-      if (i > 0) await new Promise(r => setTimeout(r, 1500)); // pace between batches
-      const batch = analyzedPages.slice(i, i + AI_BATCH);
-      const batchResults = await Promise.all(batch.map(page => analyzePageWithAI(page, siteType)));
-      aiResults.push(...batchResults);
+    // 4. Run page AI analysis, site-wide AI and indexability CONCURRENTLY.
+    // Site-wide (Sonnet, ~10-15 s) and indexability (~2 s) previously ran
+    // sequentially after page AI, adding 12-17 s to total time. Running them
+    // in parallel shaves ~12 s off the audit duration and keeps us well under
+    // Railway's 60 s proxy timeout.
+    //
+    // Page AI is batched (3 at a time) with 500 ms inter-batch delay.
+
+    async function runPageAi(pages, siteType) {
+      const results = [];
+      const AI_BATCH = 3;
+      for (let i = 0; i < pages.length; i += AI_BATCH) {
+        if (i > 0) await new Promise(r => setTimeout(r, 500)); // reduced from 1500 ms
+        const batch = pages.slice(i, i + AI_BATCH);
+        const batchResults = await Promise.all(batch.map(p => analyzePageWithAI(p, siteType)));
+        results.push(...batchResults);
+      }
+      return results;
     }
+
+    const [aiResults, siteWide, indexability] = await Promise.all([
+      runPageAi(analyzedPages, siteType),
+      analyzeSiteWide(pages, siteType),
+      auditIndexability(pages, normalizedUrl),
+    ]);
 
     // Attach AI results to pages
     analyzedPages.forEach((page, i) => {
       analyzedPages[i].aiAnalysis = aiResults[i];
     });
-
-    // 5. Site-wide AI analysis (Sonnet for quality)
-    const siteWide = await analyzeSiteWide(pages, siteType);
-
-    // 6. Indexability audit (robots.txt + meta robots + canonical + search engines)
-    const indexability = await auditIndexability(pages, normalizedUrl);
 
     // 7. Calculate scores
     const pageScores = analyzedPages.map(page => {

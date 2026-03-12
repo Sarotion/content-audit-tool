@@ -2,8 +2,13 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const https = require('https');
 
-const CRAWL_TIMEOUT = 8000;
+const CRAWL_TIMEOUT = 4000;   // per-page fetch timeout (ms) — was 8000
 const MAX_PAGES = 15;
+const CRAWL_DELAY_MS = 100;   // delay between pages (ms) — was 300
+// Wall-clock budget for the entire crawl phase. Stops adding new pages once
+// this threshold is reached, so AI analysis can start before Railway's proxy
+// closes the connection (Railway timeout ≈ 60 s, budget = 40 s leaves ~20 s for AI).
+const CRAWL_WALL_BUDGET_MS = 40000;
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; ContentAuditBot/1.0; +https://contentaudit.tool)',
@@ -507,10 +512,18 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
   let siteType = null;
   let slots = null;
   const typeCounts = { homepage: 0, product: 0, category: 0, blog: 0, about: 0, contact: 0, service: 0, other: 0 };
+  const crawlStart = Date.now();
 
   console.log(`🕷️  Starting crawl: ${base}`);
 
   while (pages.length < MAX_PAGES) {
+    // Respect wall-clock crawl budget so AI analysis can start before Railway's
+    // proxy timeout closes the connection. Always crawl at least the 1st page.
+    if (pages.length > 0 && (Date.now() - crawlStart) >= CRAWL_WALL_BUDGET_MS) {
+      console.log(`  [budget] Crawl wall-clock budget reached after ${pages.length} pages — stopping crawl early`);
+      break;
+    }
+
     // Pick from primary queue first; fall back to spill queue as fill
     let url, fromSpill;
     if (primaryQueue.length > 0) {
@@ -629,7 +642,7 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
     }
 
-    await new Promise(r => setTimeout(r, 300));
+    if (CRAWL_DELAY_MS > 0) await new Promise(r => setTimeout(r, CRAWL_DELAY_MS));
   }
 
   console.log(`✅ Crawled ${pages.length} pages | type: ${siteType} | distribution: ${JSON.stringify(typeCounts)}`);
