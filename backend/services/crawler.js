@@ -294,14 +294,22 @@ const SLOTS = {
 
 /**
  * URL priority score for queue ordering (higher = crawled sooner).
- * E-shop order: products → categories → blog → about/contact → other
+ * E-shop order: products → categories → fromCategory links → blog → about/contact → other
+ *
+ * @param {string}  url
+ * @param {string}  siteType        - 'eshop' | 'website'
+ * @param {object}  hintPatterns    - { category?, product?, blog? } regex strings
+ * @param {Set}     [fromCategoryUrls] - links discovered on a DOM-detected category page
  */
-function urlPriorityForType(url, siteType, hintPatterns) {
+function urlPriorityForType(url, siteType, hintPatterns, fromCategoryUrls = null) {
   // Hint patterns take highest precedence
   const hintType = detectTypeFromHint(url, hintPatterns);
   if (hintType === 'product')  return 10;
   if (hintType === 'category') return 9;
-  if (hintType === 'blog')     return 5;
+  if (hintType === 'blog')     return 6;
+
+  // Links found on an already-crawled category page → likely products or sub-categories
+  if (siteType === 'eshop' && fromCategoryUrls && fromCategoryUrls.has(url)) return 8;
 
   const u = url.toLowerCase();
   if (siteType === 'eshop') {
@@ -356,14 +364,26 @@ function extractPageData(url, html, $, xRobotsTag = null) {
   const h2 = $('h2').map((_, el) => $(el).text().trim()).get();
   const h3 = $('h3').map((_, el) => $(el).text().trim()).get();
 
-  // ⚠️ Extract structured data and internal links BEFORE removing nav/scripts,
-  // otherwise nav links and LD+JSON would be lost ($.remove() mutates in place).
+  // ⚠️ Extract structured data, internal links AND JS data layer BEFORE removing nav/scripts,
+  // otherwise nav links, LD+JSON and pageType hints would be lost ($.remove() mutates in place).
   const structuredData = [];
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
       const d = JSON.parse($(el).html());
       structuredData.push(d['@type'] || (Array.isArray(d) ? d.map(x => x['@type']) : 'Unknown'));
     } catch {}
+  });
+
+  // ── JS data layer: platform-embedded page type (highest reliability) ─────
+  // Shoptet, Upgates and similar platforms embed {"pageType":"category"} /
+  // {"pageType":"productDetail"} / {"pageType":"article"} in inline scripts.
+  // Extract BEFORE script removal so we have the definitive type signal.
+  let jsPageType = null;
+  $('script:not([src])').each((_, el) => {
+    if (jsPageType) return; // stop after first match
+    const src = $(el).html() || '';
+    const m = src.match(/"pageType"\s*:\s*"([^"]+)"/i);
+    if (m) jsPageType = m[1].toLowerCase();
   });
 
   const internalLinks = $('a[href]').map((_, el) => ({
@@ -383,9 +403,22 @@ function extractPageData(url, html, $, xRobotsTag = null) {
 
   const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
 
+  // Map JS data layer pageType → our internal type strings
+  // Falls back to DOM/URL scoring when not available.
+  const jsType = jsPageType
+    ? (() => {
+        const pt = jsPageType;
+        if (pt === 'productdetail' || pt === 'product') return 'product';
+        if (pt === 'category' || pt === 'categorylist') return 'category';
+        if (pt === 'article' || pt === 'blog') return 'blog';
+        if (pt === 'index' || pt === 'homepage' || pt === 'home') return 'homepage';
+        return null; // unknown value → fall through
+      })()
+    : null;
+
   return {
     url,
-    type: detectPageType(url, $),
+    type: jsType || detectPageType(url, $),
     title,
     metaDescription,
     canonical,
@@ -575,23 +608,25 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       console.log(`  Site type re-evaluated → eshop (found product/category page types after ${pages.length} pages)`);
     }
     if (reEvaluated) {
-      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
-      spillQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
+      spillQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
     }
 
-    // Add newly discovered links to the primary queue (sorted by priority)
+    // Add newly discovered links and ALWAYS re-sort the entire primary queue.
+    // Without a full sort, newly-added high-priority fromCategoryUrls items (priority 8)
+    // would sit at the back of the queue behind already-queued lower-priority pages.
     const newLinks = result.links
-      .filter(l => !visited.has(l))
-      .sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
+      .filter(l => !visited.has(l));
 
     for (const link of newLinks.slice(0, 80)) {
       visited.add(link);
       primaryQueue.push(link);
     }
 
-    // Periodically re-sort the primary queue for accurate priority
-    if (pages.length % 3 === 0 && siteType) {
-      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
+    // Full sort after every page crawled – ensures fromCategoryUrls items (prio 8)
+    // float above about/contact (prio 3) and boring pages (prio 1) immediately.
+    if (siteType) {
+      primaryQueue.sort((a, b) => urlPriorityForType(b, siteType, hintPatterns, fromCategoryUrls) - urlPriorityForType(a, siteType, hintPatterns, fromCategoryUrls));
     }
 
     await new Promise(r => setTimeout(r, 300));
