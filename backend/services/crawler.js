@@ -497,13 +497,16 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
   const base = normalizeUrl(startUrl).replace(/\/$/, ''); // Always strip trailing slash
   const visited = new Set([base]);
 
-  // Two-tier queue:
-  //   primaryQueue – preferred pages (respects type caps; crawled first)
-  //   spillQueue   – pages deferred by caps (crawled as fill when primary is empty)
-  // This guarantees we always reach MAX_PAGES even when an e-shop uses
-  // non-standard URL slugs that don't match our product/category patterns.
+  // Three-tier queue system — guarantees the strict page count target is always met:
+  //   primaryQueue   – preferred pages (type caps enforced; crawled first)
+  //   spillQueue     – limit:0 type pages (e.g. service on eshop), crawled as fill
+  //   overflowQueue  – pages skipped because their type cap was full BUT preferred
+  //                    types could not be found on this site (e.g. no blog exists).
+  //                    Drained last so every remaining slot is filled and we always
+  //                    return exactly maxPages pages (never fewer).
   const primaryQueue = [base];
   const spillQueue = [];
+  const overflowQueue = [];
   const pages = [];
 
   // URLs discovered from category pages — likely products/sub-categories.
@@ -547,13 +550,18 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       break;
     }
 
-    // Pick from primary queue first; fall back to spill queue as fill
-    let url, fromSpill;
+    // Pick next URL: primary → spill → overflow (last resort to hit exact page target)
+    let url, fromSpill, fromOverflow;
     if (primaryQueue.length > 0) {
-      url = primaryQueue.shift(); fromSpill = false;
+      url = primaryQueue.shift(); fromSpill = false; fromOverflow = false;
     } else if (spillQueue.length > 0) {
-      url = spillQueue.shift(); fromSpill = true;
-      console.log(`  [fill] switching to spill queue (${spillQueue.length + 1} deferred URLs)`);
+      url = spillQueue.shift(); fromSpill = true; fromOverflow = false;
+      console.log(`  [fill] switching to spill queue (${spillQueue.length + 1} remaining)`);
+    } else if (overflowQueue.length > 0) {
+      // Preferred types exhausted or unfindable on this site — use overflow to fill
+      // remaining slots so we always return exactly maxPages pages.
+      url = overflowQueue.shift(); fromSpill = false; fromOverflow = true;
+      console.log(`  [overflow] filling with overflow page (${overflowQueue.length} remaining)`);
     } else {
       break; // Nothing left to crawl
     }
@@ -561,7 +569,10 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
     const remaining = maxPages - pages.length;
 
     // ── Type cap enforcement ──────────────────────────────────────────────────
-    if (siteType && slots && remaining > 3) {
+    // Overflow pages bypass all cap checks — they are only used to fill slots that
+    // preferred types could not fill (e.g. site has no blog), ensuring the strict
+    // page-count target is always met.
+    if (siteType && slots && remaining > 0 && !fromOverflow) {
       let urlType = detectTypeFromHint(url, hintPatterns) || detectTypeFromUrl(url);
 
       // URLs discovered from a DOM-detected category page are very likely products.
@@ -580,23 +591,23 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
           spillQueue.push(url); continue;
         }
         if (typeCounts[urlType] >= limit) {
-          // Over cap – skip entirely. Do NOT add to spill (would bypass caps there).
-          // Only let through if all preferred slots are already filled.
+          // Over cap → save in overflow (not discarded). Overflow is drained only when
+          // all preferred types are exhausted, so these pages fill the last slots and
+          // we always hit the exact page target.
           const unfilledSlots = Object.entries(slots).reduce((sum, [t, cap]) =>
             sum + Math.max(0, cap - (typeCounts[t] || 0)), 0);
-          if (unfilledSlots > 0) continue; // Better pages expected – skip this one
-          // All preferred slots filled → accept as extra fill
+          if (unfilledSlots > 0) { overflowQueue.push(url); continue; }
+          // All preferred slots filled → accept this page as extra fill right now
         }
       } else {
-        // SPILL queue (fill mode): still respect soft caps for typed pages.
-        // Only bypass cap for limit===0 types (those are the intentional fill pages).
+        // SPILL queue (fill mode): respect soft caps; over-cap pages go to overflow.
         if (limit > 0 && typeCounts[urlType] >= limit) {
-          continue; // Cap exceeded even in fill mode – skip
+          overflowQueue.push(url); continue;
         }
       }
     }
 
-    console.log(`  Crawling [${fromSpill ? 'fill' : 'prio'}]: ${url}`);
+    console.log(`  Crawling [${fromOverflow ? 'overflow' : fromSpill ? 'fill' : 'prio'}]: ${url}`);
     const result = await fetchPage(url);
 
     if (!result) continue;
