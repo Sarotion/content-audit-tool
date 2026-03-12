@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { crawlWebsite, normalizeUrl } = require('../services/crawler');
-const { analyzePageRules, checkDuplicates, calculatePageScore, generateContentAnalysis } = require('../services/analyzer');
+const { analyzePageRules, checkDuplicates, calculatePageScore } = require('../services/analyzer');
 const { analyzeSiteWide } = require('../services/aiAnalyzer');
 const { auditIndexability } = require('../services/indexability');
 const { savePatterns, getPatterns, buildPatterns } = require('../services/patternStore');
@@ -71,14 +71,7 @@ router.post('/', async (req, res) => {
     // 3. Duplicate content detection (kept for internal use / PDF)
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
-    // 4. Per-page content analysis (rule-based, instant, no API calls).
-    //    Generates the same JSON shape as the former AI per-page analysis
-    //    so the frontend doesn't need any changes.
-    analyzedPages.forEach(page => {
-      page.aiAnalysis = generateContentAnalysis(page, siteType);
-    });
-
-    // 5. Site-wide AI analysis + indexability run concurrently.
+    // 4. Site-wide AI analysis + indexability run concurrently.
     //    Only ONE AI call (site-wide) — fits comfortably under Railway's 60 s limit.
     //    Timing: crawl ≤ 20 s + max(siteWide ~5 s, indexability ~3 s) = ~25 s total.
     const t_ai_start = Date.now();
@@ -87,58 +80,31 @@ router.post('/', async (req, res) => {
       auditIndexability(pages, normalizedUrl),
     ]);
 
-    // 7. Calculate scores
+    // 6. Calculate scores (pure rule-based, no per-page AI)
     const pageScores = analyzedPages.map(page => {
-      const ruleScore = calculatePageScore(page.checks);
-      const ai = page.aiAnalysis;
-      const aiScore = ai
-        ? Math.round((
-            ai.firstImpression.score +
-            ai.benefitGap.score +
-            ai.emotionalTone.score +
-            ai.contentQuality.score
-          ) / 4)
-        : null;
-
-      const finalScore = aiScore !== null
-        ? Math.round(ruleScore * 0.60 + aiScore * 0.40)
-        : ruleScore;
-
-      // Merge indexability data into each page
+      const score = calculatePageScore(page.checks);
       const pageIndexability = indexability.pages.find(p => p.url === page.url) || null;
-
-      return { ...page, ruleScore, aiScore, finalScore, indexability: pageIndexability };
+      return { ...page, score, indexability: pageIndexability };
     });
 
     const overallScore = Math.round(
-      pageScores.reduce((sum, p) => sum + p.finalScore, 0) / pageScores.length
+      pageScores.reduce((sum, p) => sum + p.score, 0) / pageScores.length
     );
 
-    // 8. Category scores
+    // 7. Category scores
     const categoryScores = {
       'Title & Meta': avgScore(pageScores, p => (p.checks.title.score + p.checks.metaDescription.score) / 2),
       'Nadpisy & Struktura': avgScore(pageScores, p => p.checks.headings.score),
-      'Kvalita obsahu': avgScore(pageScores, p => {
-        const ai = p.aiAnalysis?.contentQuality?.score;
-        return ai != null ? (p.checks.thinContent.score + ai) / 2 : p.checks.thinContent.score;
-      }),
+      'Kvalita obsahu': avgScore(pageScores, p => p.checks.thinContent.score),
       'Obrázky': avgScore(pageScores, p => p.checks.images.score),
-      'Technické SEO': avgScore(pageScores, p => (p.checks.structuredData.score + p.checks.openGraph.score + p.checks.url.score) / 3),
-      'Copy & Přínos': avgScore(pageScores, p => {
-        const ai = p.aiAnalysis;
-        return ai ? (ai.benefitGap.score + ai.emotionalTone.score + ai.firstImpression.score) / 3 : 50;
-      })
+      'Technické SEO': avgScore(pageScores, p => (p.checks.structuredData.score + p.checks.openGraph.score + p.checks.url.score) / 3)
     };
 
-    // 9. Collect top issues (site-wide, from all pages)
+    // 8. Collect top issues (site-wide, from all pages)
     const allIssues = [];
     for (const page of pageScores) {
       for (const check of Object.values(page.checks)) {
         allIssues.push(...(check.issues || []));
-      }
-      if (page.aiAnalysis) {
-        allIssues.push(...(page.aiAnalysis.contentQuality?.issues || []));
-        allIssues.push(...(page.aiAnalysis.benefitGap?.issues || []));
       }
     }
     const uniqueIssues = [...new Set(allIssues)].slice(0, 5);
@@ -174,11 +140,8 @@ router.post('/', async (req, res) => {
         url: p.url,
         type: p.type,
         title: p.title,
-        score: p.finalScore,
-        ruleScore: p.ruleScore,
-        aiScore: p.aiScore,
+        score: p.score,
         checks: p.checks,
-        aiAnalysis: p.aiAnalysis || null,
         wordCount: p.wordCount,
         indexability: p.indexability
       })),

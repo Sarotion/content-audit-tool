@@ -317,7 +317,6 @@ function PageDetail({ page }) {
           <div className="flex border-b border-border bg-surface">
             {[
               { id: 'seo', label: '⚙ SEO & Technické' },
-              { id: 'content', label: '✍ Obsah & Copy' },
               ...(indexIssues.length > 0 ? [{ id: 'index', label: '🔍 Indexace' }] : [])
             ].map(tab => (
               <button
@@ -383,24 +382,6 @@ function PageDetail({ page }) {
                     </div>
                   )
                 })}
-              </div>
-            )}
-
-            {/* Content & Copy (AI analysis) */}
-            {activeSection === 'content' && (
-              <div className="space-y-2.5">
-                {page.aiAnalysis ? (
-                  <>
-                    <AISectionCard sectionKey="firstImpression" data={page.aiAnalysis.firstImpression} />
-                    <AISectionCard sectionKey="benefitGap"      data={page.aiAnalysis.benefitGap} />
-                    <AISectionCard sectionKey="emotionalTone"   data={page.aiAnalysis.emotionalTone} />
-                    <AISectionCard sectionKey="contentQuality"  data={page.aiAnalysis.contentQuality} />
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-muted text-sm">
-                    AI analýza pro tuto stránku není k dispozici
-                  </div>
-                )}
               </div>
             )}
 
