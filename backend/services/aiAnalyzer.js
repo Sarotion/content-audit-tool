@@ -5,10 +5,25 @@ console.log(`[aiAnalyzer] ANTHROPIC_API_KEY: ${apiKey ? `set (starts with ${apiK
 const client = new Anthropic({ apiKey });
 
 /**
+ * Robustly extract a JSON object from an AI response string.
+ * Handles markdown code blocks, leading/trailing text, minor formatting issues.
+ */
+function parseAiJson(text) {
+  // Strip markdown fences
+  const clean = text.replace(/```json\n?|\n?```/g, '').trim();
+  // Try direct parse first
+  try { return JSON.parse(clean); } catch {}
+  // Fallback: find the first {...} block in case of leading/trailing prose
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]); } catch {} }
+  return null;
+}
+
+/**
  * AI analysis for a single page using Claude
  * Covers: benefit gap, emotional tone, first impression, generic content, content quality
  */
-async function analyzePageWithAI(page, siteType = 'eshop') {
+async function analyzePageWithAI(page, siteType = 'eshop', retries = 1) {
   const siteContext = siteType === 'eshop'
     ? 'e-shopem (online obchod)'
     : 'firemním webem (služby/prezentace)';
@@ -78,10 +93,16 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
       messages: [{ role: 'user', content: prompt }]
     });
     const text = response.content[0].text;
-    const clean = text.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(clean);
+    const parsed = parseAiJson(text);
+    if (!parsed) throw new Error('Failed to parse AI response as JSON');
+    return parsed;
   } catch (err) {
-    console.error('AI page analysis failed:', err.message, err.status, err.error);
+    if (err.status === 429 && retries > 0) {
+      console.warn(`[AI] Rate limited for ${page.url}, waiting 8s before retry (${retries} left)...`);
+      await new Promise(r => setTimeout(r, 8000));
+      return analyzePageWithAI(page, siteType, retries - 1);
+    }
+    console.error(`AI page analysis failed for ${page.url}:`, err.message, 'status:', err.status);
     return getDefaultAIResults();
   }
 }
@@ -152,10 +173,26 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
       messages: [{ role: 'user', content: prompt }]
     });
     const text = response.content[0].text;
-    const clean = text.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(clean);
+    const parsed = parseAiJson(text);
+    if (!parsed) throw new Error('Failed to parse site-wide AI response as JSON');
+    return parsed;
   } catch (err) {
-    console.error('Site-wide AI analysis failed:', err.message, err.status, err.error);
+    if (err.status === 429) {
+      console.warn('[AI] Site-wide rate limited, waiting 10s and retrying...');
+      await new Promise(r => setTimeout(r, 10000));
+      try {
+        const response2 = await client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1400,
+          messages: [{ role: 'user', content: prompt }]
+        });
+        const parsed2 = parseAiJson(response2.content[0].text);
+        if (parsed2) return parsed2;
+      } catch (err2) {
+        console.error('Site-wide AI retry also failed:', err2.message);
+      }
+    }
+    console.error('Site-wide AI analysis failed:', err.message, 'status:', err.status);
     return {
       siteWideIssues: [],
       keywordCannibalization: [],

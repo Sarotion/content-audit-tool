@@ -73,6 +73,15 @@ function detectPageType(url, $) {
     if (urlObj.pathname === '/' || urlObj.pathname === '') return 'homepage';
   } catch {}
 
+  // ── Platform body-class detection (fast path, very reliable) ────────────
+  // Shoptet (and some other Czech e-shop platforms) set type-* tokens on <body>.
+  // This is the most reliable signal for plain-slug URL structures.
+  const bodyClass = $('body').attr('class') || '';
+  if (/\btype-product\b|\btype-detail\b/.test(bodyClass)) return 'product';
+  if (/\btype-category\b|\btype-list\b/.test(bodyClass)) return 'category';
+  if (/\btype-index\b|\btype-home\b/.test(bodyClass)) return 'homepage';
+  if (/\btype-article\b|\btype-blog\b/.test(bodyClass)) return 'blog';
+
   // ── URL-based detection (fast path) ──────────────────────────────────────
   // Shoptet: _z{id} = product, _k{id} = category
   if (/_z\d+(\/|$)/.test(u)) return 'product';
@@ -141,19 +150,23 @@ function detectPageType(url, $) {
   if (hasPagination) categoryScore += 5;
 
   // Sort control (listings almost always have one)
+  // Shoptet uses div.listSorting (matched by [class*="sorting"] and [class*="listSorting"])
   if ($('select[name*="sort"], select[name*="razeni"], select[name*="order"], ' +
         '[class*="sort-select"], [class*="sorting"], [class*="order-by"], ' +
-        '[class*="product-sort"]').length > 0) categoryScore += 4;
+        '[class*="product-sort"], [class*="listSorting"], [data-sort]').length > 0) categoryScore += 4;
 
   // Filter / facet sidebar
   if ($('[class*="filter"], [class*="filtr"], [class*="filtrace"], ' +
         '[class*="facet"], aside [class*="category"]').length > 0) categoryScore += 3;
 
   // Count of product tiles/cards on the page (key signal)
+  // Shoptet uses div.products > div.product (bare class, no suffix)
   const tileCount = $(
     '[class*="product-item"], [class*="product-card"], [class*="item-product"], ' +
     '[data-product-id], [class*="product-tile"], [class*="category-product"], ' +
-    'ul.products li, ul.product-list li, .products-grid > *, [class*="produkty"] > li'
+    'ul.products li, ul.product-list li, .products-grid > *, [class*="produkty"] > li, ' +
+    '.products.products-page .product, .products-block .product, ' +
+    '[class*="products-"] > .product'
   ).length;
   if (tileCount >= 8) categoryScore += 6;
   else if (tileCount >= 4) categoryScore += 4;
@@ -273,8 +286,10 @@ function detectSiteType(pageData, $) {
  * Page type slots per site type (max pages of each type to include)
  */
 const SLOTS = {
-  eshop: { homepage: 1, product: 3, category: 3, blog: 2, about: 1, contact: 1, service: 0, other: 0 },
-  website: { homepage: 1, service: 4, blog: 2, about: 1, contact: 1, product: 0, category: 0, other: 1 }
+  // For e-shops: allow up to 8 "other" URL-type pages so plain-slug sites (Shoptet without
+  // _k/_z suffixes, etc.) can be crawled. DOM detection re-classifies them correctly.
+  eshop: { homepage: 1, product: 5, category: 4, blog: 2, about: 1, contact: 1, service: 0, other: 8 },
+  website: { homepage: 1, service: 4, blog: 2, about: 1, contact: 1, product: 0, category: 0, other: 2 }
 };
 
 /**
@@ -439,6 +454,11 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
   const spillQueue = [];
   const pages = [];
 
+  // URLs discovered from category pages — likely products/sub-categories.
+  // We boost their URL-detected type to 'product' so they bypass the
+  // other→spill redirect and get crawled directly from the primary queue.
+  const fromCategoryUrls = new Set();
+
   // Pre-seed queue with hint URLs (known valid pages of specific types).
   // Crawling them early ensures their outbound links (e.g. products on a category page)
   // fill the discovery queue and we reach MAX_PAGES.
@@ -473,13 +493,21 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
 
     // ── Type cap enforcement ──────────────────────────────────────────────────
     if (siteType && slots && remaining > 3) {
-      const urlType = detectTypeFromHint(url, hintPatterns) || detectTypeFromUrl(url);
+      let urlType = detectTypeFromHint(url, hintPatterns) || detectTypeFromUrl(url);
+
+      // URLs discovered from a DOM-detected category page are very likely products.
+      // Treat them as 'product' type so they bypass the other→spill redirect and
+      // get crawled from primary queue (enables plain-slug Shoptet sites to work).
+      if (urlType === 'other' && fromCategoryUrls.has(url) && siteType === 'eshop') {
+        urlType = 'product';
+      }
+
       const limit = slots[urlType] ?? 0;
 
       if (!fromSpill) {
         // PRIMARY queue: enforce all caps strictly
         if (limit === 0) {
-          // Excluded type (e.g. "other" for e-shops, "service" etc.) → defer to spill as fill
+          // Excluded type (e.g. "service" for e-shops, etc.) → defer to spill as fill
           spillQueue.push(url); continue;
         }
         if (typeCounts[urlType] >= limit) {
@@ -516,6 +544,14 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
 
     typeCounts[pageType] = (typeCounts[pageType] || 0) + 1;
     pages.push(result.data);
+
+    // Mark links discovered from category pages as likely products.
+    // These will be prioritised over generic 'other' pages during cap enforcement.
+    if (pageType === 'category') {
+      for (const link of result.links) {
+        fromCategoryUrls.add(link);
+      }
+    }
 
     // ── Mid-crawl site type re-evaluation ──────────────────────────────────
     // Initial detection only sees the homepage. These checks use richer evidence:

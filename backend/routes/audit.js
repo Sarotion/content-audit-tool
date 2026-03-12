@@ -71,10 +71,12 @@ router.post('/', async (req, res) => {
     // 3. Duplicate content detection (kept for internal use / PDF)
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
-    // 4. AI analysis – batched (3 at a time) to avoid Anthropic concurrent connection limit
+    // 4. AI analysis – batched (3 at a time) to avoid Anthropic concurrent connection limit.
+    // 1.5s inter-batch delay reduces 429 rate-limit errors on successive batches.
     const aiResults = [];
     const AI_BATCH = 3;
     for (let i = 0; i < analyzedPages.length; i += AI_BATCH) {
+      if (i > 0) await new Promise(r => setTimeout(r, 1500)); // pace between batches
       const batch = analyzedPages.slice(i, i + AI_BATCH);
       const batchResults = await Promise.all(batch.map(page => analyzePageWithAI(page, siteType)));
       aiResults.push(...batchResults);
