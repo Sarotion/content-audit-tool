@@ -88,7 +88,7 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
 
   try {
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5',
       max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -97,9 +97,13 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
     if (!parsed) throw new Error('Failed to parse AI response as JSON');
     return parsed;
   } catch (err) {
-    // On 429: don't wait — return defaults immediately to avoid adding 8-10 s
-    // of latency per page (which compounds to 40-80 s across 15 pages and breaks
-    // Railway's 60 s proxy timeout). Better to skip AI than to time out the whole audit.
+    if (err.status === 429 && retries > 0) {
+      // Short 2 s wait (was 8 s) — enough for the rate-limit token bucket to refill
+      // without blowing Railway's 60 s proxy timeout across many pages.
+      console.warn(`[AI] Rate limited for ${page.url}, waiting 2s (${retries} retries left)...`);
+      await new Promise(r => setTimeout(r, 2000));
+      return analyzePageWithAI(page, siteType, retries - 1);
+    }
     console.warn(`[AI] Page analysis failed for ${page.url}: ${err.message} (status: ${err.status})`);
     return getDefaultAIResults();
   }
@@ -166,7 +170,7 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
 
   try {
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5',
       max_tokens: 1400,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -175,7 +179,7 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
     if (!parsed) throw new Error('Failed to parse site-wide AI response as JSON');
     return parsed;
   } catch (err) {
-    // No retry — return defaults to avoid Railway 60 s proxy timeout
+    // No retry for site-wide — return defaults to avoid Railway 60 s proxy timeout
     console.warn('[AI] Site-wide analysis failed:', err.message, 'status:', err.status);
     return {
       siteWideIssues: [],
