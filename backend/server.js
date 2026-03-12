@@ -11,6 +11,9 @@ const pdfRoutes = require('./routes/pdf');
 
 const app = express();
 
+// Trust Railway's reverse proxy (needed for express-rate-limit to work correctly)
+app.set('trust proxy', 1);
+
 app.use(helmet({
   // Allow serving PDF files from /uploads without strict CSP
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -53,7 +56,7 @@ app.get('/health', (req, res) => res.json({
   status: 'ok',
   timestamp: new Date().toISOString(),
   version: process.env.BUILD_VERSION || 'dev',
-  build: '2026-03-12-F'
+  build: '2026-03-12-G'
 }));
 
 const PORT = process.env.PORT || 3001;
