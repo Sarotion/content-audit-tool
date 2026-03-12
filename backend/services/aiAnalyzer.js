@@ -88,7 +88,7 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -97,12 +97,10 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
     if (!parsed) throw new Error('Failed to parse AI response as JSON');
     return parsed;
   } catch (err) {
-    if (err.status === 429 && retries > 0) {
-      console.warn(`[AI] Rate limited for ${page.url}, waiting 8s before retry (${retries} left)...`);
-      await new Promise(r => setTimeout(r, 8000));
-      return analyzePageWithAI(page, siteType, retries - 1);
-    }
-    console.error(`AI page analysis failed for ${page.url}:`, err.message, 'status:', err.status);
+    // On 429: don't wait — return defaults immediately to avoid adding 8-10 s
+    // of latency per page (which compounds to 40-80 s across 15 pages and breaks
+    // Railway's 60 s proxy timeout). Better to skip AI than to time out the whole audit.
+    console.warn(`[AI] Page analysis failed for ${page.url}: ${err.message} (status: ${err.status})`);
     return getDefaultAIResults();
   }
 }
@@ -168,7 +166,7 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1400,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -177,22 +175,8 @@ Maximálně 3 položky v každém poli. Buď konkrétní a přátelský.`;
     if (!parsed) throw new Error('Failed to parse site-wide AI response as JSON');
     return parsed;
   } catch (err) {
-    if (err.status === 429) {
-      console.warn('[AI] Site-wide rate limited, waiting 10s and retrying...');
-      await new Promise(r => setTimeout(r, 10000));
-      try {
-        const response2 = await client.messages.create({
-          model: 'claude-haiku-4-5',
-          max_tokens: 1400,
-          messages: [{ role: 'user', content: prompt }]
-        });
-        const parsed2 = parseAiJson(response2.content[0].text);
-        if (parsed2) return parsed2;
-      } catch (err2) {
-        console.error('Site-wide AI retry also failed:', err2.message);
-      }
-    }
-    console.error('Site-wide AI analysis failed:', err.message, 'status:', err.status);
+    // No retry — return defaults to avoid Railway 60 s proxy timeout
+    console.warn('[AI] Site-wide analysis failed:', err.message, 'status:', err.status);
     return {
       siteWideIssues: [],
       keywordCannibalization: [],
