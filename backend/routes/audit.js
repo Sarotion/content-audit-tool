@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { crawlWebsite, normalizeUrl } = require('../services/crawler');
-const { analyzePageRules, checkDuplicates, calculatePageScore } = require('../services/analyzer');
-const { analyzePageWithAI, analyzeSiteWide } = require('../services/aiAnalyzer');
+const { analyzePageRules, checkDuplicates, calculatePageScore, generateContentAnalysis } = require('../services/analyzer');
+const { analyzeSiteWide } = require('../services/aiAnalyzer');
 const { auditIndexability } = require('../services/indexability');
 const { savePatterns, getPatterns, buildPatterns } = require('../services/patternStore');
 
@@ -71,40 +71,21 @@ router.post('/', async (req, res) => {
     // 3. Duplicate content detection (kept for internal use / PDF)
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
-    // 4. Run AI analysis for ALL crawled pages (strict page caps guarantee ≤12).
-    //
-    // Timing with strict caps: crawl ≤ 18 s + page AI ≤ 20 s + siteWide ≤ 5 s = ~43 s.
-    // SiteWide runs AFTER page AI (not concurrently) to avoid 429 rate-limit clashes.
-    // Indexability (robots.txt only, ≤ 3 s) runs concurrently with page AI.
+    // 4. Per-page content analysis (rule-based, instant, no API calls).
+    //    Generates the same JSON shape as the former AI per-page analysis
+    //    so the frontend doesn't need any changes.
+    analyzedPages.forEach(page => {
+      page.aiAnalysis = generateContentAnalysis(page, siteType);
+    });
 
+    // 5. Site-wide AI analysis + indexability run concurrently.
+    //    Only ONE AI call (site-wide) — fits comfortably under Railway's 60 s limit.
+    //    Timing: crawl ≤ 20 s + max(siteWide ~5 s, indexability ~3 s) = ~25 s total.
     const t_ai_start = Date.now();
-    async function runPageAi(pages, siteType) {
-      const AI_BATCH = 3;
-      const aiResultMap = {};
-      for (let i = 0; i < pages.length; i += AI_BATCH) {
-        if (i > 0) await new Promise(r => setTimeout(r, 200));
-        const batch = pages.slice(i, i + AI_BATCH);
-        const batchResults = await Promise.all(batch.map(p => analyzePageWithAI(p, siteType)));
-        batch.forEach((p, j) => { aiResultMap[p.url] = batchResults[j]; });
-      }
-      return pages.map(p => aiResultMap[p.url] || null);
-    }
-
-    // Page AI + indexability run concurrently; siteWide waits for page AI to finish
-    // (prevents 429 rate-limit collisions between page and site-wide calls).
-    const [aiResults, indexability] = await Promise.all([
-      runPageAi(analyzedPages, siteType).then(r => { console.log(`  [timing] pageAI done in ${((Date.now()-t_ai_start)/1000).toFixed(1)}s (${analyzedPages.length} pages)`); return r; }),
+    const [siteWide, indexability] = await Promise.all([
+      analyzeSiteWide(pages, siteType).then(r => { console.log(`  [timing] siteWide AI done in ${((Date.now()-t_ai_start)/1000).toFixed(1)}s`); return r; }),
       auditIndexability(pages, normalizedUrl),
     ]);
-
-    const t_sitewide_start = Date.now();
-    const siteWide = await analyzeSiteWide(pages, siteType);
-    console.log(`  [timing] siteWide done in ${((Date.now()-t_sitewide_start)/1000).toFixed(1)}s`);
-
-    // Attach AI results to pages (null = page was not AI-analysed)
-    analyzedPages.forEach((page, i) => {
-      analyzedPages[i].aiAnalysis = aiResults[i];
-    });
 
     // 7. Calculate scores
     const pageScores = analyzedPages.map(page => {

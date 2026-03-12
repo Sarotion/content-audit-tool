@@ -265,4 +265,182 @@ function calculatePageScore(checks) {
   return Math.round(total / totalWeight);
 }
 
-module.exports = { analyzePageRules, checkDuplicates, calculatePageScore };
+// ─── RULE-BASED CONTENT ANALYSIS ─────────────────────────────────────────────
+// Produces the same JSON shape as the AI per-page analysis so the frontend
+// doesn't need any changes.  100 % deterministic, instant, no API calls.
+
+function generateContentAnalysis(page, siteType) {
+  const { title, h1, h2, bodyText, wordCount, type, url } = page;
+  const text = (bodyText || '').toLowerCase();
+  const isEshop = siteType === 'eshop';
+  const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
+
+  // ── firstImpression ───────────────────────────────────────────────────────
+  let fiScore = 60;
+  const fiIssues = [];
+  const fiPassed = [];
+  let fiQuickWin = '';
+
+  if (title && title.length >= 30) {
+    fiScore += 10; fiPassed.push('Title stránky je dostatečně popisný');
+  } else if (!title || title.length < 15) {
+    fiScore -= 20; fiIssues.push('Návštěvník nevidí jasnou informaci o čem stránka je – riskujete okamžitý odchod');
+  }
+
+  if (h1.length === 1 && h1[0].length > 10) {
+    fiScore += 15; fiPassed.push('Jasný hlavní nadpis (H1) pomáhá orientaci');
+  } else if (h1.length === 0) {
+    fiScore -= 20; fiIssues.push('Chybí hlavní nadpis – zákazník neví na co se dívá');
+    fiQuickWin = `Na stránce ${url}: Přidejte výstižný H1 nadpis, který jasně říká co stránka nabízí`;
+  }
+
+  if (wordCount >= 100) {
+    fiScore += 10; fiPassed.push('Stránka má dostatek úvodního textu');
+  } else if (wordCount < 50) {
+    fiScore -= 15; fiIssues.push('Prakticky žádný obsah – zákazník nemá důvod zůstat');
+    if (!fiQuickWin) fiQuickWin = `Na stránce ${url}: Přidejte minimálně 150 slov popisujících co nabízíte a proč`;
+  }
+
+  if (!fiQuickWin && fiIssues.length > 0)
+    fiQuickWin = `Na stránce ${url}: Zlepšete nadpis a úvodní text tak, aby zákazník do 3 sekund věděl co nabízíte`;
+
+  const fiHeadline = fiScore >= 70 ? 'Dobrý první dojem' : fiScore >= 45 ? 'První dojem potřebuje práci' : 'Slabý první dojem';
+  const fiSummary = fiScore >= 70
+    ? 'Stránka komunikuje svůj účel jasně, návštěvník se rychle zorientuje.'
+    : fiScore >= 45
+      ? 'Stránka by mohla lépe komunikovat svůj hlavní účel a přitáhnout pozornost.'
+      : 'Návštěvník pravděpodobně nepozná hned, co mu stránka nabízí a proč by měl zůstat.';
+
+  // ── benefitGap ────────────────────────────────────────────────────────────
+  let bgScore = 60;
+  const bgIssues = [];
+  const bgPassed = [];
+  let bgQuickWin = '';
+
+  const ctaKw = ['koupit', 'objednat', 'přidat do košíku', 'kontaktujte', 'objednejte',
+    'poptat', 'vyzkoušet', 'stáhnout', 'zavolat', 'napište nám', 'nezávazn'];
+  const benefitKw = ['výhod', 'proč', 'garanc', 'zaruč', 'zdarma', 'doprava zdarma',
+    'vrácení', 'recenz', 'hodnocení', 'spokojen', 'kvalit', 'originál', 'sleva', 'akce'];
+  const socialKw = ['recenz', 'hodnocení', 'zákazník', 'klient', 'referenc', 'spokojeno', 'hvězd'];
+
+  const hasCta = ctaKw.some(kw => text.includes(kw));
+  const benefitCount = benefitKw.filter(kw => text.includes(kw)).length;
+  const hasSocialProof = socialKw.some(kw => text.includes(kw));
+
+  if (hasCta) { bgScore += 15; bgPassed.push('Stránka obsahuje výzvu k akci'); }
+  else {
+    bgScore -= 15; bgIssues.push('Chybí jasná výzva k akci – zákazník neví co má dělat dál');
+    bgQuickWin = isEshop
+      ? `Na stránce ${url}: Přidejte výrazné tlačítko "Přidat do košíku" nebo "Objednat" viditelné bez scrollování`
+      : `Na stránce ${url}: Přidejte jasnou výzvu k akci jako "Poptat nabídku" nebo "Kontaktujte nás"`;
+  }
+  if (benefitCount >= 3) { bgScore += 15; bgPassed.push('Text komunikuje více benefitů pro zákazníka'); }
+  else if (benefitCount >= 1) { bgScore += 5; bgPassed.push('Text zmiňuje některé benefity'); }
+  else { bgScore -= 10; bgIssues.push('Text neříká zákazníkovi PROČ by měl nakoupit/objednat právě tady'); }
+
+  if (hasSocialProof) { bgScore += 10; bgPassed.push('Stránka obsahuje sociální důkaz (recenze, hodnocení)'); }
+  else if (isEshop && type !== 'blog') { bgScore -= 5; bgIssues.push('Chybí recenze nebo hodnocení – zákazníci nemají důvod důvěřovat'); }
+
+  if (!bgQuickWin && bgIssues.length > 0)
+    bgQuickWin = isEshop
+      ? `Na stránce ${url}: Přidejte sekci "Proč nakoupit u nás" s 3 konkrétními výhodami`
+      : `Na stránce ${url}: Přidejte sekci "Proč s námi" s 3 konkrétními důvody`;
+
+  const bgHeadline = bgScore >= 70 ? 'Dobře komunikované benefity' : bgScore >= 45 ? 'Benefity potřebují posílit' : 'Chybí důvody k akci';
+  const bgSummary = bgScore >= 70
+    ? 'Stránka poměrně dobře komunikuje proč by zákazník měl využít nabídku.'
+    : bgScore >= 45
+      ? 'Stránka by mohla lépe vysvětlit, co zákazník získá a proč by měl jednat.'
+      : 'Zákazník nemá jasný důvod proč by měl na této stránce nakoupit nebo kontaktovat firmu.';
+
+  // ── emotionalTone ─────────────────────────────────────────────────────────
+  let etScore = 60;
+  const etIssues = [];
+  const etPassed = [];
+  let etQuickWin = '';
+  let tone = 'neutrální';
+
+  const personalPronouns = (text.match(/\bvy\b|\bvás\b|\bvám\b|\bváš\b|\bvaš[eií]\b|\bvašich\b/gi) || []).length;
+  const techWords = (text.match(/\bimplementace\b|\boptimalizace\b|\binfrastruktur|\bsystém\b|\btechnolog|\bparametr/gi) || []).length;
+
+  if (personalPronouns >= 3) {
+    etScore += 15; tone = 'přátelský';
+    etPassed.push('Text mluví přímo k zákazníkovi (vy, vám, váš)');
+  } else if (personalPronouns === 0 && wordCount > 100) {
+    etScore -= 10;
+    etIssues.push('Text nemluví k zákazníkovi – chybí osobní oslovení');
+    etQuickWin = `Na stránce ${url}: Přeformulujte text tak, aby mluvil přímo k zákazníkovi – používejte "vy", "váš", "vám"`;
+  }
+
+  if (techWords >= 3 && personalPronouns < 2) {
+    tone = 'technický'; etScore -= 5;
+    etIssues.push('Text je příliš technický – může odradit běžné zákazníky');
+  }
+
+  if (wordCount >= 100 && etIssues.length === 0 && personalPronouns >= 1) {
+    etScore += 10;
+    tone = personalPronouns >= 3 ? 'přátelský' : 'důvěryhodný';
+  }
+
+  if (!etQuickWin && etIssues.length > 0)
+    etQuickWin = `Na stránce ${url}: Přepište klíčové odstavce tak, aby mluvily přímo k zákazníkovi a vysvětlovaly benefit`;
+
+  const etHeadline = etScore >= 70 ? 'Příjemný tón textu' : etScore >= 45 ? 'Tón textu je průměrný' : 'Tón textu odrazuje';
+  const etSummary = etScore >= 70
+    ? `Text působí ${tone} dojmem, zákazník se cítí osloven osobně.`
+    : etScore >= 45
+      ? `Text působí ${tone} dojmem, ale mohl by být více zaměřený na zákazníka.`
+      : `Text působí ${tone} dojmem – zákazník se nemusí cítit osloven.`;
+
+  // ── contentQuality ────────────────────────────────────────────────────────
+  let cqScore = 60;
+  const cqIssues = [];
+  const cqPassed = [];
+  let cqQuickWin = '';
+  let isGeneric = false;
+
+  const minWords = type === 'product' ? 200 : type === 'category' ? 150 : type === 'blog' ? 300 : 100;
+
+  if (wordCount >= minWords * 2) { cqScore += 20; cqPassed.push(`Obsáhlý text (${wordCount} slov) pomáhá SEO i zákazníkům`); }
+  else if (wordCount >= minWords) { cqScore += 10; cqPassed.push(`Dostatečný rozsah textu (${wordCount} slov)`); }
+  else if (wordCount >= 50) {
+    cqScore -= 15;
+    cqIssues.push(`Málo obsahu (${wordCount} slov) – zákazník nemá dostatek informací pro rozhodnutí`);
+    cqQuickWin = `Na stránce ${url}: Rozšiřte text na minimálně ${minWords} slov – popište detaily, výhody a odpovězte na otázky zákazníků`;
+  } else {
+    cqScore -= 30; isGeneric = true;
+    cqIssues.push(`Prakticky žádný obsah (${wordCount} slov) – stránka neposkytuje hodnotu`);
+    cqQuickWin = `Na stránce ${url}: Napište alespoň ${minWords} slov kvalitního obsahu popisujícího co stránka nabízí`;
+  }
+
+  if (h2.length >= 2 && wordCount >= 150) { cqScore += 10; cqPassed.push('Text je dobře strukturován nadpisy'); }
+  else if (h2.length === 0 && wordCount >= 200) {
+    cqScore -= 10;
+    cqIssues.push('Dlouhý text bez podnadpisů – těžko se čte a zákazník ho přeskočí');
+    if (!cqQuickWin) cqQuickWin = `Na stránce ${url}: Rozdělte text do sekcí s H2 nadpisy – každá sekce 1 téma/benefit`;
+  }
+
+  if (/lorem ipsum|placeholder|coming soon|ve výstavbě|připravujeme/i.test(text)) {
+    cqScore -= 30; isGeneric = true;
+    cqIssues.push('Stránka obsahuje zástupný text – zákazník to vidí jako nedokončený web');
+  }
+
+  if (!cqQuickWin && cqIssues.length > 0)
+    cqQuickWin = `Na stránce ${url}: Přidejte relevantní obsah a odpovědi na otázky, které zákazníci nejčastěji mají`;
+
+  const cqHeadline = cqScore >= 70 ? 'Kvalitní obsah' : cqScore >= 45 ? 'Obsah potřebuje vylepšit' : 'Slabý obsah';
+  const cqSummary = cqScore >= 70
+    ? 'Obsah stránky je dostatečně obsáhlý a strukturovaný pro zákazníky i vyhledávače.'
+    : cqScore >= 45
+      ? 'Obsah stránky splňuje základy, ale je prostor pro rozšíření a zlepšení struktury.'
+      : 'Obsah stránky je nedostatečný – zákazník nemá dost informací pro rozhodnutí.';
+
+  return {
+    firstImpression: { score: clamp(fiScore), headline: fiHeadline, summary: fiSummary, issues: fiIssues, passed: fiPassed, quickWin: fiQuickWin || '' },
+    benefitGap: { score: clamp(bgScore), headline: bgHeadline, summary: bgSummary, issues: bgIssues, passed: bgPassed, quickWin: bgQuickWin || '' },
+    emotionalTone: { score: clamp(etScore), tone, headline: etHeadline, summary: etSummary, issues: etIssues, passed: etPassed, quickWin: etQuickWin || '' },
+    contentQuality: { score: clamp(cqScore), isGeneric, headline: cqHeadline, summary: cqSummary, issues: cqIssues, passed: cqPassed, quickWin: cqQuickWin || '' }
+  };
+}
+
+module.exports = { analyzePageRules, checkDuplicates, calculatePageScore, generateContentAnalysis };
