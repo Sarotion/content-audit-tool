@@ -86,16 +86,96 @@ function detectPageType(url, $) {
   if (/\/(kontakt|contact)/.test(u)) return 'contact';
   if (/\/(sluzby|services|nabidka|reseni|cenik|pricing)/.test(u)) return 'service';
 
-  // ── Content-based fallbacks (for Czech e-shops with non-standard URL slugs) ─
-  // Product page: Schema.org Product type or add-to-cart button
-  if ($('[itemtype*="schema.org/Product"], [itemtype*="Product"]').length > 0) return 'product';
-  if ($('[class*="add-to-cart"], [class*="do-kosiku"], [class*="pridat-do-kosiku"], [data-action*="cart"], form[action*="kosik"], form[action*="cart"]').length > 0) return 'product';
-  // Shoptet-specific product signals
-  if ($('[class*="pd-buy"], [class*="product-detail-buy"], [class*="buy-btn"], [id*="buy-btn"]').length > 0) return 'product';
-  // Category/listing page: multiple product tiles visible on one page
-  if ($('[class*="product-item"], [class*="product-card"], [class*="item-product"], [data-product-id], [class*="product-tile"]').length >= 4) return 'category';
-  // Shoptet-specific category signals: product list with multiple items
-  if ($('ul.product-list li, [class*="category-product"], .products-grid .product, [class*="produkty"] li').length >= 4) return 'category';
+  // ── Content-based detection (scoring) ────────────────────────────────────
+  // Accumulate signals for 'product' and 'category'; highest score wins.
+  let productScore = 0;
+  let categoryScore = 0;
+
+  // ── Product signals ──────────────────────────────────────────────────────
+
+  // Schema.org Product markup (very reliable)
+  if ($('[itemtype*="schema.org/Product"]').length > 0) productScore += 5;
+
+  // Quantity input (almost exclusive to product detail pages)
+  if ($('input[type="number"][name*="qty"], input[name*="quantity"], input[name*="pocet"], ' +
+        'input[name*="mnozstvi"], [class*="qty-input"], [class*="quantity-input"], ' +
+        'input[id*="quantity"], [class*="amount-input"]').length > 0) productScore += 5;
+
+  // Count add-to-cart buttons:
+  //   exactly 1 → detail page;  ≥2 → listing (quick-add per product)
+  const cartBtnCount = $(
+    '[class*="add-to-cart"], [class*="do-kosiku"], [class*="pridat-do-kosiku"], ' +
+    '[class*="pd-buy"], [class*="product-detail-buy"], [class*="buy-btn"], [id*="buy-btn"], ' +
+    '.single_add_to_cart_button, [data-action*="cart"], ' +
+    'form[action*="kosik"] button[type="submit"], form[action*="cart"] button[type="submit"]'
+  ).length;
+  if (cartBtnCount === 1) productScore += 4;
+  else if (cartBtnCount >= 2) { categoryScore += 3; }  // multiple quick-adds = listing
+
+  // Availability / stock indicator (common on product detail)
+  if ($('[itemprop="availability"], [class*="availability"], [class*="dostupnost"], ' +
+        '[class*="skladem"], [class*="in-stock"], [class*="out-of-stock"]').length > 0) productScore += 2;
+
+  // Product image gallery (single-product view)
+  if ($('[class*="product-gallery"], [class*="product-images"], [class*="product-photo"], ' +
+        '[class*="product-img"], [id*="product-gallery"], [class*="hlavni-obrazek"]').length > 0) productScore += 2;
+
+  // Variant / option selectors (size, color, etc.)
+  if ($('select[name*="variant"], select[name*="varianta"], select[name*="option"], ' +
+        '[class*="product-variant"], [class*="product-option"], [class*="variant-select"], ' +
+        '[class*="barva-select"], [class*="velikost-select"]').length > 0) productScore += 3;
+
+  // Single prominent price (not a list — product detail has 1 price)
+  const priceCount = $('[itemprop="price"], [class*="product-price"]:not([class*="list"]), ' +
+                       '[class*="pd-price"], [class*="detail-price"]').length;
+  if (priceCount === 1) productScore += 2;
+
+  // ── Category / listing signals ────────────────────────────────────────────
+
+  // Pagination (very strong signal — product detail pages never paginate)
+  const hasPagination = (
+    $('[class*="pagination"], .pager, [class*="strankovani"], [class*="paginator"], ' +
+      '[class*="page-nav"], nav[aria-label*="stránk"], [class*="pages-list"]').length > 0 ||
+    $('a[href*="page="], a[href*="stranka="], a[href*="pg="], a[href*="p="]').length >= 2
+  );
+  if (hasPagination) categoryScore += 5;
+
+  // Sort control (listings almost always have one)
+  if ($('select[name*="sort"], select[name*="razeni"], select[name*="order"], ' +
+        '[class*="sort-select"], [class*="sorting"], [class*="order-by"], ' +
+        '[class*="product-sort"]').length > 0) categoryScore += 4;
+
+  // Filter / facet sidebar
+  if ($('[class*="filter"], [class*="filtr"], [class*="filtrace"], ' +
+        '[class*="facet"], aside [class*="category"]').length > 0) categoryScore += 3;
+
+  // Count of product tiles/cards on the page (key signal)
+  const tileCount = $(
+    '[class*="product-item"], [class*="product-card"], [class*="item-product"], ' +
+    '[data-product-id], [class*="product-tile"], [class*="category-product"], ' +
+    'ul.products li, ul.product-list li, .products-grid > *, [class*="produkty"] > li'
+  ).length;
+  if (tileCount >= 8) categoryScore += 6;
+  else if (tileCount >= 4) categoryScore += 4;
+  else if (tileCount >= 2) categoryScore += 2;
+
+  // Multiple prices on the page (each product in a listing has its own price)
+  const multiPrice = $('[class*="price"], [class*="cena"], [itemprop="price"]').length;
+  if (multiPrice >= 6) categoryScore += 4;
+  else if (multiPrice >= 3) categoryScore += 2;
+
+  // Product count text ("X produktů", "Nalezeno X", "X výsledků")
+  const bodyTextSample = $('body').text().slice(0, 5000);
+  if (/\b\d+\s*(produktů|položek|výsledků|nalezených|zboží)\b/i.test(bodyTextSample)) categoryScore += 3;
+
+  // ── Decision ─────────────────────────────────────────────────────────────
+  const urlPath = (() => { try { return new URL(url).pathname; } catch { return url; } })();
+  console.log(`  [type-detect] ${urlPath} → product:${productScore} category:${categoryScore} tiles:${tileCount} cart:${cartBtnCount} prices:${multiPrice}`);
+  if (productScore >= 4 || categoryScore >= 4) {
+    if (productScore > categoryScore) return 'product';
+    if (categoryScore > productScore) return 'category';
+    if (productScore > 0) return 'product'; // tie → lean product
+  }
 
   return 'other';
 }
@@ -468,7 +548,7 @@ async function crawlWebsite(startUrl, hintPatterns = null, hintUrls = []) {
       .filter(l => !visited.has(l))
       .sort((a, b) => urlPriorityForType(b, siteType, hintPatterns) - urlPriorityForType(a, siteType, hintPatterns));
 
-    for (const link of newLinks.slice(0, 40)) {
+    for (const link of newLinks.slice(0, 80)) {
       visited.add(link);
       primaryQueue.push(link);
     }
