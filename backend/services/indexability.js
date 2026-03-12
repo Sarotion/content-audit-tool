@@ -1,6 +1,8 @@
 const axios = require('axios');
 
-const TIMEOUT = 7000;
+const TIMEOUT = 3000; // was 7000 — slow external requests to Google/Seznam were the
+                      // main bottleneck (sequential 7s timeouts × 3 requests = 21s worst-
+                      // case, sometimes 40+ s with redirect chains from Railway's US servers)
 const SEARCH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml',
@@ -230,10 +232,9 @@ async function auditIndexability(pages, baseUrl) {
   const pageResults = pages.map(page => checkPageIndexability(page, robotsTxt));
   const indexableCount = pageResults.filter(p => p.indexable).length;
 
-  let domain;
-  try { domain = new URL(baseUrl).hostname; } catch { domain = baseUrl; }
-
-  const searchIndexation = await checkSearchIndexation(domain);
+  // checkSearchIndexation (site: queries to Google/Seznam) dropped from UI –
+  // was the main cause of Railway 60 s proxy timeouts (sequential 7 s external
+  // requests × redirect chains from US servers = 40+ s).
 
   return {
     robotsTxtExists: robotsTxt !== null,
@@ -241,7 +242,7 @@ async function auditIndexability(pages, baseUrl) {
     pages: pageResults,
     indexableCount,
     totalPages: pages.length,
-    searchIndexation
+    searchIndexation: null
   };
 }
 
