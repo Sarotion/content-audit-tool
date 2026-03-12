@@ -49,10 +49,14 @@ router.post('/', async (req, res) => {
     // 3. Duplicate content detection (kept for internal use / PDF)
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
-    // 4. AI analysis – ALL pages in parallel (using Haiku for speed/cost)
-    const aiResults = await Promise.all(
-      analyzedPages.map(page => analyzePageWithAI(page, siteType))
-    );
+    // 4. AI analysis – batched (3 at a time) to avoid Anthropic concurrent connection limit
+    const aiResults = [];
+    const AI_BATCH = 3;
+    for (let i = 0; i < analyzedPages.length; i += AI_BATCH) {
+      const batch = analyzedPages.slice(i, i + AI_BATCH);
+      const batchResults = await Promise.all(batch.map(page => analyzePageWithAI(page, siteType)));
+      aiResults.push(...batchResults);
+    }
 
     // Attach AI results to pages
     analyzedPages.forEach((page, i) => {

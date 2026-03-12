@@ -74,7 +74,7 @@ Skóre 0-100 kde 100 = perfektní. Buď konkrétní a akční.`;
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 1200,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     });
     const text = response.content[0].text;
