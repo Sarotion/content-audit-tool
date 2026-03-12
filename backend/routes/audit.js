@@ -72,18 +72,14 @@ router.post('/', async (req, res) => {
     const { duplicateTitles, duplicateDescriptions } = checkDuplicates(pages);
 
     // 4. Run page AI analysis, site-wide AI and indexability CONCURRENTLY.
-    // Site-wide (Sonnet, ~10-15 s) and indexability (~2 s) previously ran
-    // sequentially after page AI, adding 12-17 s to total time. Running them
-    // in parallel shaves ~12 s off the audit duration and keeps us well under
-    // Railway's 60 s proxy timeout.
-    //
-    // Page AI is batched (3 at a time) with 500 ms inter-batch delay.
+    // Page AI is batched (3 at a time) with 200 ms inter-batch delay.
 
+    const t_ai_start = Date.now();
     async function runPageAi(pages, siteType) {
       const results = [];
       const AI_BATCH = 3;
       for (let i = 0; i < pages.length; i += AI_BATCH) {
-        if (i > 0) await new Promise(r => setTimeout(r, 200)); // reduced from 500 ms
+        if (i > 0) await new Promise(r => setTimeout(r, 200));
         const batch = pages.slice(i, i + AI_BATCH);
         const batchResults = await Promise.all(batch.map(p => analyzePageWithAI(p, siteType)));
         results.push(...batchResults);
@@ -91,9 +87,10 @@ router.post('/', async (req, res) => {
       return results;
     }
 
+    const t_sitewide_start = Date.now();
     const [aiResults, siteWide, indexability] = await Promise.all([
-      runPageAi(analyzedPages, siteType),
-      analyzeSiteWide(pages, siteType),
+      runPageAi(analyzedPages, siteType).then(r => { console.log(`  [timing] pageAI done in ${((Date.now()-t_ai_start)/1000).toFixed(1)}s`); return r; }),
+      analyzeSiteWide(pages, siteType).then(r => { console.log(`  [timing] siteWide done in ${((Date.now()-t_sitewide_start)/1000).toFixed(1)}s`); return r; }),
       auditIndexability(pages, normalizedUrl),
     ]);
 
@@ -159,7 +156,8 @@ router.post('/', async (req, res) => {
     const uniqueIssues = [...new Set(allIssues)].slice(0, 5);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ Audit completed in ${elapsed}s | Score: ${overallScore}/100 | Pages: ${pages.length} | Type: ${siteType}`);
+    const aiElapsed = ((Date.now() - t_ai_start) / 1000).toFixed(1);
+    console.log(`✅ Audit completed in ${elapsed}s | Score: ${overallScore}/100 | Pages: ${pages.length} | Type: ${siteType} | AI total: ${aiElapsed}s`);
 
     const result = {
       url: normalizedUrl,
@@ -197,7 +195,8 @@ router.post('/', async (req, res) => {
         indexability: p.indexability
       })),
       analysedAt: new Date().toISOString(),
-      durationSeconds: parseFloat(elapsed)
+      durationSeconds: parseFloat(elapsed),
+      _timing: { crawlS: parseFloat((t_ai_start - startTime) / 1000), aiTotalS: parseFloat(aiElapsed) }
     };
 
     res.json(result);
